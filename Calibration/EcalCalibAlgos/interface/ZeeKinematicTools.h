@@ -47,10 +47,7 @@ class ZeeKinematicTools {
       static float calculateZMassWithCorrectedElectrons_noTK(const std::pair<calib::CalibElectron*,calib::CalibElectron*>& aZCandidate, float ele1EnergyCorrection, float ele2EnergyCorrection);
       static float calculateZMassWithCorrectedElectrons_withTK(const std::pair<calib::CalibElectron*,calib::CalibElectron*>& aZCandidate, float ele1EnergyCorrection, float ele2EnergyCorrection);
 
-      static float cosThetaElectrons_SC( const std::pair<calib::CalibElectron*,calib::CalibElectron*>& aZCandidate, float ele1EnergyCorrection, float ele2EnergyCorrection );
-      static float cosThetaElectrons_TK( const std::pair<calib::CalibElectron*,calib::CalibElectron*>& aZCandidate, float ele1EnergyCorrection, float ele2EnergyCorrection );
-
-
-
+      static float cosThetaElectrons_SC( const std::pair<calib::CalibElectron*,calib::CalibElectron*>& aZCandidate );
+      static float cosThetaElectrons_TK( const std::pair<calib::CalibElectron*,calib::CalibElectron*>& aZCandidate );
 };
 #endif
