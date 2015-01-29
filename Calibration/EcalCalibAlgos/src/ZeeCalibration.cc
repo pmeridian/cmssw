@@ -344,6 +344,9 @@ void ZeeCalibration::endOfJob() {
 
   h1_Selection_ ->Write();   
 
+  h1_massBeforeCut_->Write();
+  h1_massAfterCut_->Write();
+
   h1_eventsBeforeEWKSelection_    ->Write();
   h1_eventsAfterEWKSelection_     ->Write();
   h1_eventsBeforeBorderSelection_ ->Write();
@@ -355,13 +358,13 @@ void ZeeCalibration::endOfJob() {
   h2_xtalMiscalibCoeffEndcapMinus_ ->Write();
   h2_xtalMiscalibCoeffEndcapPlus_  ->Write();
 
-  h1_electronCosTheta_SC_->Write();
-  h1_electronCosTheta_TK_->Write();
-  h1_electronCosTheta_SC_TK_->Write();
+  // h1_electronCosTheta_SC_->Write();
+  // h1_electronCosTheta_TK_->Write();
+  // h1_electronCosTheta_SC_TK_->Write();
 
   h1_zMassResol_ ->Write();
-  h1_zEtaResol_  ->Write();
-  h1_zPhiResol_  ->Write();
+  // h1_zEtaResol_  ->Write();
+  // h1_zPhiResol_  ->Write();
   h1_eleEtaResol_->Write();
   h1_elePhiResol_->Write();
   h1_seedOverSC_ ->Write();
@@ -376,10 +379,10 @@ void ZeeCalibration::endOfJob() {
     }
   }
 
-  h2_fEtaBarrelGood_->Write();
-  h2_fEtaBarrelBad_->Write();
-  h2_fEtaEndcapGood_->Write();
-  h2_fEtaEndcapBad_->Write();
+  // h2_fEtaBarrelGood_->Write();
+  // h2_fEtaBarrelBad_->Write();
+  // h2_fEtaEndcapGood_->Write();
+  // h2_fEtaEndcapBad_->Write();
   h1_eleClasses_->Write();
 
   h_eleEffEta_[0]->Write();
@@ -967,6 +970,14 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
   std::cout <<" Done with myZeePlots_->fillEleInfo(electronCollection); " << std::endl; 
 #endif
 
+  // Just to check the effect of acceptance cuts (chiara: hardcoded!)
+  int okAcceptEle=0;
+  for(reco::GsfElectronCollection::const_iterator eleIt = electronCollection->begin(); eleIt != electronCollection->end(); eleIt++) {
+    if ( fabs(eleIt->superCluster()->eta())<2.5 && eleIt->pt()>20) okAcceptEle++;
+  }
+  if (okAcceptEle>=2) h1_Selection_->Fill(4.);  
+
+
   // Filling new ElectronCollection with new SC ref and calibElectron container
   std::vector<calib::CalibElectron> calibElectrons;
 
@@ -977,6 +988,9 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
     float DeltaRMineleSCbarrel(0.15);
     float DeltaRMineleSCendcap(0.15);
     int iSC=0;
+
+    // acceptance cuts (chiara: hardcoded!)
+    if ( fabs(eleIt->superCluster()->eta())>2.5 || eleIt->pt()<20) continue;
   
     // loop on EB superClusters   
     int iscRefEB=-1;
@@ -1039,7 +1053,7 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
 
   // COMBINATORY FOR Z MASS - begin 
   if (calibElectrons.size() < 2) return kContinue;
-  h1_Selection_->Fill(4.);
+  h1_Selection_->Fill(5.);
 
 #ifdef DEBUG
   std::cout << "building zeeCandidates" << std::endl;
@@ -1084,7 +1098,7 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
   h1_ZCandMult_->Fill(zeeCandidates.size());
   
   if(zeeCandidates.size()==0 || myBestZ==-1 ) return kContinue;
-  h1_Selection_->Fill(5.);
+  h1_Selection_->Fill(6.);
 
   if (loopFlag_ == 0)
     myZeePlots_->fillZInfo( zeeCandidates[myBestZ] );
@@ -1175,7 +1189,7 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
     EEZN++;
     if(class1==0 && class2==0) EEZN_gg++;
   }
-
+  
   if( (fabs(eta1)<1.5 && fabs(eta2)>1.5) || (fabs(eta2)<1.5 && fabs(eta1)>1.5)){
     EBZN++;
     if(class1==0 && class2==0) EBZN_gg++;
@@ -1185,9 +1199,13 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
 
   ///////////////////////////ELECTRON SELECTION///////////////////////////////
   if(myBestZ == -1) return kContinue;
-    
+
+  h1_massBeforeCut_->Fill(mass);
   bool invMassBool = ( (mass > minInvMassCut_) && (mass < maxInvMassCut_) );
   if (!invMassBool) return kContinue;
+  h1_massAfterCut_->Fill(mass);
+
+  h1_Selection_->Fill(7.);
 
 
   // Variables implementation from
@@ -1353,26 +1371,25 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
 
   h1_eventsBeforeEWKSelection_->Fill(1);
 
-  if (loopFlag_ == 0) {
-    h1_deltaEta -> Fill(DeltaEtaIn_1);
-    h1_deltaEta -> Fill(DeltaEtaIn_2);
-    h1_deltaPhi -> Fill(DeltaPhiIn_1);
-    h1_deltaPhi -> Fill(DeltaPhiIn_2);
-    h1_sIeIe    -> Fill(Full5x5_Sieie_1);
-    h1_sIeIe    -> Fill(Full5x5_Sieie_2);
-    h1_hoe      -> Fill(HoE_1);
-    h1_hoe      -> Fill(HoE_2);
-    h1_eop      -> Fill(OneOverEoP_1);
-    h1_eop      -> Fill(OneOverEoP_2);
-    h1_do       -> Fill(d0_1);
-    h1_do       -> Fill(d0_2);
-    h1_dz       -> Fill(dz_1);
-    h1_dz       -> Fill(dz_2);
-    h1_pfIso    -> Fill(absIsoWdBeta_1/pt_1); 
-    h1_pfIso    -> Fill(absIsoWdBeta_2/pt_2); 
-    h1_mhits    -> Fill(mHits_1);
-    h1_mhits    -> Fill(mHits_2);
-  }
+  // control plots
+  h1_deltaEta -> Fill(DeltaEtaIn_1);
+  h1_deltaEta -> Fill(DeltaEtaIn_2);
+  h1_deltaPhi -> Fill(DeltaPhiIn_1);
+  h1_deltaPhi -> Fill(DeltaPhiIn_2);
+  h1_sIeIe    -> Fill(Full5x5_Sieie_1);
+  h1_sIeIe    -> Fill(Full5x5_Sieie_2);
+  h1_hoe      -> Fill(HoE_1);
+  h1_hoe      -> Fill(HoE_2);
+  h1_eop      -> Fill(OneOverEoP_1);
+  h1_eop      -> Fill(OneOverEoP_2);
+  h1_do       -> Fill(d0_1);
+  h1_do       -> Fill(d0_2);
+  h1_dz       -> Fill(dz_1);
+  h1_dz       -> Fill(dz_2);
+  h1_pfIso    -> Fill(absIsoWdBeta_1/pt_1); 
+  h1_pfIso    -> Fill(absIsoWdBeta_2/pt_2); 
+  h1_mhits    -> Fill(mHits_1);
+  h1_mhits    -> Fill(mHits_2);
 
 #ifdef DEBUG_EWK
   std::cout << "---------------------------------------------" << std::endl;
@@ -1404,29 +1421,27 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
   cout << "EWK selection ok" << endl;
 #endif
 
-  h1_Selection_->Fill(6.);
+  h1_Selection_->Fill(8.);
   h1_eventsAfterEWKSelection_->Fill(1);
 
-  if (loopFlag_ == 0) {
-    h1_afterEWK_deltaEta -> Fill(DeltaEtaIn_1);
-    h1_afterEWK_deltaEta -> Fill(DeltaEtaIn_2);
-    h1_afterEWK_deltaPhi -> Fill(DeltaPhiIn_1);
-    h1_afterEWK_deltaPhi -> Fill(DeltaPhiIn_2);
-    h1_afterEWK_sIeIe    -> Fill(Full5x5_Sieie_1);
-    h1_afterEWK_sIeIe    -> Fill(Full5x5_Sieie_2);
-    h1_afterEWK_hoe      -> Fill(HoE_1);
-    h1_afterEWK_hoe      -> Fill(HoE_2);
-    h1_afterEWK_eop      -> Fill(OneOverEoP_1);
-    h1_afterEWK_eop      -> Fill(OneOverEoP_2);
-    h1_afterEWK_do       -> Fill(d0_1);
-    h1_afterEWK_do       -> Fill(d0_2);
-    h1_afterEWK_dz       -> Fill(dz_1);
-    h1_afterEWK_dz       -> Fill(dz_2);
-    h1_afterEWK_pfIso    -> Fill(absIsoWdBeta_1/pt_1); 
-    h1_afterEWK_pfIso    -> Fill(absIsoWdBeta_2/pt_2); 
-    h1_afterEWK_mhits    -> Fill(mHits_1);
-    h1_afterEWK_mhits    -> Fill(mHits_2);
-  }
+  h1_afterEWK_deltaEta -> Fill(DeltaEtaIn_1);
+  h1_afterEWK_deltaEta -> Fill(DeltaEtaIn_2);
+  h1_afterEWK_deltaPhi -> Fill(DeltaPhiIn_1);
+  h1_afterEWK_deltaPhi -> Fill(DeltaPhiIn_2);
+  h1_afterEWK_sIeIe    -> Fill(Full5x5_Sieie_1);
+  h1_afterEWK_sIeIe    -> Fill(Full5x5_Sieie_2);
+  h1_afterEWK_hoe      -> Fill(HoE_1);
+  h1_afterEWK_hoe      -> Fill(HoE_2);
+  h1_afterEWK_eop      -> Fill(OneOverEoP_1);
+  h1_afterEWK_eop      -> Fill(OneOverEoP_2);
+  h1_afterEWK_do       -> Fill(d0_1);
+  h1_afterEWK_do       -> Fill(d0_2);
+  h1_afterEWK_dz       -> Fill(dz_1);
+  h1_afterEWK_dz       -> Fill(dz_2);
+  h1_afterEWK_pfIso    -> Fill(absIsoWdBeta_1/pt_1); 
+  h1_afterEWK_pfIso    -> Fill(absIsoWdBeta_2/pt_2); 
+  h1_afterEWK_mhits    -> Fill(mHits_1);
+  h1_afterEWK_mhits    -> Fill(mHits_2);
 
   // ----------------------------------------------------------------------
   // extra selections (on top of ID + mass window) based on EB/EE and class
@@ -1485,9 +1500,9 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
     }
 
     // SC energies without f(eta) corrections
-    h1_electronCosTheta_SC_    -> Fill( ZeeKinematicTools::cosThetaElectrons_SC(zeeCandidates[myBestZ])  );
-    h1_electronCosTheta_TK_    -> Fill( ZeeKinematicTools::cosThetaElectrons_TK(zeeCandidates[myBestZ])  );
-    h1_electronCosTheta_SC_TK_ -> Fill( ZeeKinematicTools::cosThetaElectrons_SC(zeeCandidates[myBestZ])/ZeeKinematicTools::cosThetaElectrons_TK(zeeCandidates[myBestZ]) - 1. );
+    // h1_electronCosTheta_SC_    -> Fill( ZeeKinematicTools::cosThetaElectrons_SC(zeeCandidates[myBestZ])  );
+    // h1_electronCosTheta_TK_    -> Fill( ZeeKinematicTools::cosThetaElectrons_TK(zeeCandidates[myBestZ])  );
+    // h1_electronCosTheta_SC_TK_ -> Fill( ZeeKinematicTools::cosThetaElectrons_SC(zeeCandidates[myBestZ])/ZeeKinematicTools::cosThetaElectrons_TK(zeeCandidates[myBestZ]) - 1. );
     h1_reco_ZMass_->Fill(ZeeKinematicTools::calculateZMass_withTK(zeeCandidates[myBestZ]));
 
     // PUT f(eta) IN OUR Zee ALGORITHM 
@@ -1502,7 +1517,6 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
 
     mass4tree = ZeeKinematicTools::calculateZMassWithCorrectedElectrons_withTK(zeeCandidates[myBestZ],ele1EnergyCorrection,ele2EnergyCorrection);
     massDiff4tree = ZeeKinematicTools::calculateZMassWithCorrectedElectrons_withTK(zeeCandidates[myBestZ],ele1EnergyCorrection,ele2EnergyCorrection) - myGenZMass;
-
     myTree->Fill();
   }
 
@@ -1679,6 +1693,9 @@ void ZeeCalibration::bookHistograms() {
 
   h1_Selection_ = new TH1F("h1_Selection","h1_Selection",10,-0.5,9.5);
 
+  h1_massBeforeCut_ = new TH1F("h1_massBeforeCut_","h1_massBeforeCut_",150,0.,150.); 
+  h1_massAfterCut_  = new TH1F("h1_massAfterCut_", "h1_massAfterCut_", 150,0.,150.); 
+
   h1_eventsBeforeEWKSelection_ = new TH1F("h1_eventsBeforeEWKSelection", "h1_eventsBeforeEWKSelection", 5,0,5); 
   h1_eventsAfterEWKSelection_  = new TH1F("h1_eventsAfterEWKSelection", "h1_eventsAfterEWKSelection", 5,0,5);
 
@@ -1689,7 +1706,8 @@ void ZeeCalibration::bookHistograms() {
 
   h1_borderElectronClassification_ = new TH1F("h1_borderElectronClassification", "h1_borderElectronClassification", 55, -5 , 50);
   h1_preshowerOverSC_= new TH1F("h1_preshowerOverSC", "h1_preshowerOverSC", 400, 0., 1.);
-  
+
+  /*
   h2_fEtaBarrelGood_ = new TH2F("fEtaBarrelGood","fEtaBarrelGood",800,-4.,4.,800,0.8,1.2);
   h2_fEtaBarrelGood_->SetXTitle("Eta");
   h2_fEtaBarrelGood_->SetYTitle("1/fEtaBarrelGood");
@@ -1705,7 +1723,8 @@ void ZeeCalibration::bookHistograms() {
   h2_fEtaEndcapBad_ = new TH2F("fEtaEndcapBad","fEtaEndcapBad",800,-4.,4.,800,0.8,1.2);
   h2_fEtaEndcapBad_->SetXTitle("Eta");
   h2_fEtaEndcapBad_->SetYTitle("1/fEtaEndcapBad");
-  
+  */
+
   for (int i=0;i<2;i++) {
 
     char histoName[50];
@@ -1775,29 +1794,29 @@ void ZeeCalibration::bookHistograms() {
   h1_eleEtaResol_->SetXTitle("#eta_{reco} - #eta_{MC}");
   h1_eleEtaResol_->SetYTitle("events");
 
-  h1_electronCosTheta_TK_ = new TH1F("electronCosTheta_TK", "electronCosTheta_TK", 100, -1, 1);
-  h1_electronCosTheta_TK_->SetXTitle("cos #theta_{12}");
-  h1_electronCosTheta_TK_->SetYTitle("events");
+  // h1_electronCosTheta_TK_ = new TH1F("electronCosTheta_TK", "electronCosTheta_TK", 100, -1, 1);
+  // h1_electronCosTheta_TK_->SetXTitle("cos #theta_{12}");
+  // h1_electronCosTheta_TK_->SetYTitle("events");
 
-  h1_electronCosTheta_SC_ = new TH1F("electronCosTheta_SC", "electronCosTheta_SC", 100, -1, 1);
-  h1_electronCosTheta_SC_->SetXTitle("cos #theta_{12}");
-  h1_electronCosTheta_SC_->SetYTitle("events");
+  // h1_electronCosTheta_SC_ = new TH1F("electronCosTheta_SC", "electronCosTheta_SC", 100, -1, 1);
+  // h1_electronCosTheta_SC_->SetXTitle("cos #theta_{12}");
+  // h1_electronCosTheta_SC_->SetYTitle("events");
 
-  h1_electronCosTheta_SC_TK_ = new TH1F("electronCosTheta_SC_TK", "electronCosTheta_SC_TK", 200, -0.1, 0.1);
-  h1_electronCosTheta_SC_TK_->SetXTitle("cos #theta_{12}^{SC}/ cos #theta_{12}^{TK} - 1");
-  h1_electronCosTheta_SC_TK_->SetYTitle("events");
+  // h1_electronCosTheta_SC_TK_ = new TH1F("electronCosTheta_SC_TK", "electronCosTheta_SC_TK", 200, -0.1, 0.1);
+  // h1_electronCosTheta_SC_TK_->SetXTitle("cos #theta_{12}^{SC}/ cos #theta_{12}^{TK} - 1");
+  // h1_electronCosTheta_SC_TK_->SetYTitle("events");
   
   h1_elePhiResol_ = new TH1F("elePhiResol", "elePhiResol", 100, -0.01, 0.01);
   h1_elePhiResol_->SetXTitle("#phi_{reco} - #phi_{MC}");
   h1_elePhiResol_->SetYTitle("events");
 
-  h1_zEtaResol_ = new TH1F("zEtaResol", "zEtaResol", 200, -1., 1.);
-  h1_zEtaResol_->SetXTitle("#eta_{Z, reco} - #eta_{Z, MC}");
-  h1_zEtaResol_->SetYTitle("events");
+  // h1_zEtaResol_ = new TH1F("zEtaResol", "zEtaResol", 200, -1., 1.);
+  // h1_zEtaResol_->SetXTitle("#eta_{Z, reco} - #eta_{Z, MC}");
+  // h1_zEtaResol_->SetYTitle("events");
   
-  h1_zPhiResol_ = new TH1F("zPhiResol", "zPhiResol", 200, -1., 1.);
-  h1_zPhiResol_->SetXTitle("#phi_{Z, reco} - #phi_{Z, MC}");
-  h1_zPhiResol_->SetYTitle("events");
+  // h1_zPhiResol_ = new TH1F("zPhiResol", "zPhiResol", 200, -1., 1.);
+  // h1_zPhiResol_->SetXTitle("#phi_{Z, reco} - #phi_{Z, MC}");
+  // h1_zPhiResol_->SetYTitle("events");
 
   h1_nEleReco_ = new TH1F("nEleReco","Number of reco electrons",10,-0.5,10.5);
   h1_nEleReco_->SetXTitle("nEleReco");
@@ -2183,6 +2202,9 @@ void ZeeCalibration::resetVariables(){
 void ZeeCalibration::resetHistograms(){
 
   h1_Selection_->Reset();
+
+  h1_massBeforeCut_->Reset();
+  h1_massAfterCut_->Reset();
   
   h1_eventsBeforeEWKSelection_ ->Reset();
   h1_eventsAfterEWKSelection_  ->Reset();
@@ -2203,14 +2225,14 @@ void ZeeCalibration::resetHistograms(){
   
   h1_zMassResol_->Reset(); 
   
-  h1_electronCosTheta_TK_->Reset();
-  h1_electronCosTheta_SC_->Reset();
-  h1_electronCosTheta_SC_TK_->Reset();
+  // h1_electronCosTheta_TK_->Reset();
+  // h1_electronCosTheta_SC_->Reset();
+  // h1_electronCosTheta_SC_TK_->Reset();
   
-  h2_fEtaBarrelGood_->Reset();
-  h2_fEtaBarrelBad_->Reset();
-  h2_fEtaEndcapGood_->Reset();
-  h2_fEtaEndcapBad_->Reset();
+  // h2_fEtaBarrelGood_->Reset();
+  // h2_fEtaBarrelBad_->Reset();
+  // h2_fEtaEndcapGood_->Reset();
+  // h2_fEtaEndcapBad_->Reset();
   h1_eleClasses_->Reset();
   
   h1_ZCandMult_-> Reset();

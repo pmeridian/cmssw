@@ -191,16 +191,19 @@ class ZeeCalibration : public edm::ESProducerLooper {
 
   TH1F* h1_Selection_;
 
+  TH1F *h1_massBeforeCut_;
+  TH1F *h1_massAfterCut_;
+
   TH1F* h1_eventsBeforeEWKSelection_;
   TH1F* h1_eventsAfterEWKSelection_;
 
   TH1F* h1_eventsBeforeBorderSelection_;
   TH1F* h1_eventsAfterBorderSelection_;
 
-  TH2F* h2_fEtaBarrelGood_;
-  TH2F* h2_fEtaBarrelBad_;
-  TH2F* h2_fEtaEndcapGood_;
-  TH2F* h2_fEtaEndcapBad_;
+  // TH2F* h2_fEtaBarrelGood_;
+  // TH2F* h2_fEtaBarrelBad_;
+  // TH2F* h2_fEtaEndcapGood_;
+  // TH2F* h2_fEtaEndcapBad_;
   TH1F* h1_nEleReco_;
   TH1F* h1_eleClasses_;
 
@@ -212,8 +215,8 @@ class ZeeCalibration : public edm::ESProducerLooper {
   TH1F* h1_preshowerOverSC_;
 
   TH1F* h1_zMassResol_;
-  TH1F* h1_zEtaResol_;
-  TH1F* h1_zPhiResol_;
+  // TH1F* h1_zEtaResol_;
+  // TH1F* h1_zPhiResol_;
   TH1F* h1_reco_ZMass_;
 
   TH1F* h1_reco_ZMassCorr_;
@@ -277,9 +280,9 @@ class ZeeCalibration : public edm::ESProducerLooper {
   TH1F* h1_occupancyBarrel_;
   TH1F* h1_occupancyEndcap_;
   
-  TH1F* h1_electronCosTheta_TK_;
-  TH1F* h1_electronCosTheta_SC_;
-  TH1F* h1_electronCosTheta_SC_TK_;
+  // TH1F* h1_electronCosTheta_TK_;
+  // TH1F* h1_electronCosTheta_SC_;
+  // TH1F* h1_electronCosTheta_SC_TK_;
 
   TH1F* h1_borderElectronClassification_;
 
