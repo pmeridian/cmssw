@@ -46,7 +46,8 @@ process.maxEvents = cms.untracked.PSet(
 #from Calibration.EcalCalibAlgos.Cert_160404_172802_cff import *
 readFiles = cms.untracked.vstring()
 readFiles.extend( [
-        "file:fileAOD.root"   
+#        "file:fileAOD.root"   
+        "file:zeeSkimChiara.root"   
         ] )
 
 process.source = cms.Source("PoolSource",
@@ -122,7 +123,7 @@ process.particleFlowSuperClusterECAL.PFSuperClusterCollectionEndcapWithPreshower
 process.load("Calibration.EcalCalibAlgos.zeeCalibration_cff")
 
 # chiara: parametri eventualmente da cambiare
-process.looper.maxLoops = cms.untracked.uint32(2)              # chiara: era 7
+process.looper.maxLoops = cms.untracked.uint32(1)              # chiara: era 7
 process.looper.electronSelection = cms.untracked.int32(-1)     # 0-1-2-3-4; -1 to do nothing
 process.looper.histoFile = cms.string('myHistograms_test.root')
 process.looper.zeeFile = cms.string('myZeePlots_test.root')

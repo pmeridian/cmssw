@@ -25,7 +25,7 @@ process.maxEvents = cms.untracked.PSet(
 
 readFiles = cms.untracked.vstring()
 readFiles.extend( [
-        "file:fileAOD.root"   # MC DY file from phys14
+        "/store/user/crovelli/testCalibZee/fileAOD.root"   # MC DY file from phys14
 ] )
 
 process.source = cms.Source("PoolSource",
@@ -83,6 +83,9 @@ process.AODEventContent.outputCommands.extend( [
         "keep *_offlinePrimaryVertices_*_*",    # we do not save the collection with BS for the moment
         "keep *_*conversions*_*_*",
         "keep *_*offlineBeamSpot*_*_*",
+        "keep *_*particleFlowEGamma*_*_*",
+        "keep *_*particleFlowSuperClusterECAL*_*_*",
+        "keep *_*electronGsfTracks*_*_*",
         "keep *recoGenParticles_*genParticles*_*_*"] )
 
 process.ZeeSkimOutput = cms.OutputModule("PoolOutputModule",
