@@ -11,11 +11,9 @@
 using namespace calib;
 using namespace std;
 
-
-CalibElectron::CalibElectron() : theElectron_(0), theHits_(0), theEEHits_(0)
+CalibElectron::CalibElectron() : theElectron_(0), theParentSC_(0), theHits_(0), theEEHits_(0)
 {
 }
-
 
 std::vector< std::pair<int,float> > CalibElectron::getCalibModulesWeights(TString calibtype)
 {
@@ -28,8 +26,8 @@ std::vector< std::pair<int,float> > CalibElectron::getCalibModulesWeights(TStrin
       for (int i=0;i<EcalRingCalibrationTools::N_RING_TOTAL;++i)
 	w_ring[i]=0.;
       
-      std::vector<std::pair<DetId,float> > scDetIds = theElectron_->superCluster()->hitsAndFractions();
-
+      if (!theParentSC_) theParentSC_=&(*theElectron_->parentSuperCluster());
+      std::vector<std::pair<DetId,float> > scDetIds = theParentSC_->hitsAndFractions();
       
       for(std::vector<std::pair<DetId,float> >::const_iterator idIt=scDetIds.begin(); idIt!=scDetIds.end(); ++idIt){
     
@@ -41,7 +39,6 @@ std::vector< std::pair<int,float> > CalibElectron::getCalibModulesWeights(TStrin
 	if (!rh)
 	  std::cout << "CalibElectron::BIG ERROR::RecHit NOT FOUND" << std::endl;  
 	w_ring[EcalRingCalibrationTools::getRingIndex((*idIt).first)]+=rh->energy();
-	
       }
 
       for (int i=0;i<EcalRingCalibrationTools::N_RING_TOTAL;++i)
@@ -49,20 +46,18 @@ std::vector< std::pair<int,float> > CalibElectron::getCalibModulesWeights(TStrin
 	  theWeights.push_back(std::pair<int,float>(i,w_ring[i]));
 	  // std::cout << " ring " << i << " - energy sum " << w_ring[i] << std::endl;
     }
-
+  
   else if(calibtype == "MODULE")
     {
-
       float w_ring[EcalRingCalibrationTools::N_MODULES_BARREL];
 
       for (int i=0;i<EcalRingCalibrationTools::N_MODULES_BARREL;++i)
         w_ring[i]=0.;
-
-      std::vector<std::pair<DetId,float> > scDetIds = theElectron_->superCluster()->hitsAndFractions();
-
+      
+      std::vector<std::pair<DetId,float> > scDetIds = theParentSC_->hitsAndFractions();
 
       for(std::vector<std::pair<DetId,float> >::const_iterator idIt=scDetIds.begin(); idIt!=scDetIds.end(); ++idIt){
-
+	
         const EcalRecHit* rh=0;
         if ( (*idIt).first.subdetId() == EcalBarrel)
           rh = &*(theHits_->find((*idIt).first));
@@ -78,16 +73,15 @@ std::vector< std::pair<int,float> > CalibElectron::getCalibModulesWeights(TStrin
         if (w_ring[i]!=0.)
           theWeights.push_back(std::pair<int,float>(i,w_ring[i]));
       // std::cout << " ring " << i << " - energy sum " << w_ring[i] << std::endl;                            
-
     }
 
   else if(calibtype == "ABS_SCALE")
     {
       std::cout<< "ENTERING CalibElectron, ABS SCALE mode"<<std::endl;
-
+      
       float w_ring(0.);
       
-      std::vector<std::pair<DetId,float> > scDetIds = theElectron_->superCluster()->hitsAndFractions();
+      std::vector<std::pair<DetId,float> > scDetIds = theParentSC_->hitsAndFractions();
 
 
       for(std::vector<std::pair<DetId,float> >::const_iterator idIt=scDetIds.begin(); idIt!=scDetIds.end(); ++idIt){
@@ -118,7 +112,7 @@ std::vector< std::pair<int,float> > CalibElectron::getCalibModulesWeights(TStrin
       for (int i=0; i< EcalIndexingTools::getInstance()->getNumberOfChannels(); ++i)
         w_ring[i]=0.;
 
-      std::vector<std::pair<DetId,float> > scDetIds = theElectron_->superCluster()->hitsAndFractions();
+      std::vector<std::pair<DetId,float> > scDetIds = theParentSC_->hitsAndFractions();
 
 
       for(std::vector<std::pair<DetId,float> >::const_iterator idIt=scDetIds.begin(); idIt!=scDetIds.end(); ++idIt){
@@ -132,14 +126,14 @@ std::vector< std::pair<int,float> > CalibElectron::getCalibModulesWeights(TStrin
 	
 	float eta = fabs( theElectron_->eta() );
 	float theta = 2. * atan( exp(- eta) );
-	float et = theElectron_->superCluster()->energy() * sin(theta);
+	float et = theParentSC_->energy() * sin(theta);
 	
 	int in = EcalIndexingTools::getInstance()->getProgressiveIndex(eta, et);
 	
 	w_ring[in]+=rh->energy();
-	//w_ring[in]+=theElectron_->superCluster()->energy();
+	//w_ring[in]+=theParentSC_->energy();
 
-	std::cout << "CalibElectron::filling channel " << in << " with value " << theElectron_->superCluster()->energy() << std::endl;
+	std::cout << "CalibElectron::filling channel " << in << " with value " << theParentSC_->energy() << std::endl;
       }
       
       for (int i=0; i< EcalIndexingTools::getInstance()->getNumberOfChannels(); ++i){

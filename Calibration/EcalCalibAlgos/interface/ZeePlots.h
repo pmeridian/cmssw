@@ -44,7 +44,7 @@
 #include "TFile.h"
 #include "TH1.h"
 #include "TH2.h"
-
+#include "TLorentzVector.h"
 
 // class declaration
 //
@@ -60,22 +60,24 @@ class ZeePlots {
       void bookEleMCHistograms();
       void bookZHistograms();
       void bookZMCHistograms();
-      void bookHLTHistograms();
-      void bookEleClassesPlots();
+      // void bookHLTHistograms();
+      // void bookEleClassesPlots();
 
-      void fillZMCInfo( const HepMC::GenEvent* );
-      void fillEleMCInfo( const HepMC::GenEvent* );
+      // void fillZMCInfo( const HepMC::GenEvent* );
+      void fillZMCInfo( TLorentzVector );
+      // void fillEleMCInfo( const HepMC::GenEvent* );
+      void fillEleMCInfo( TLorentzVector );
       void fillEleInfo( const reco::GsfElectronCollection* );
-      void fillHLTInfo( edm::Handle<edm::TriggerResults> );
+      // void fillHLTInfo( edm::Handle<edm::TriggerResults> );
       void fillZInfo(std::pair<calib::CalibElectron*,calib::CalibElectron*> myZeeCandidate);
-      void fillEleClassesPlots( calib::CalibElectron*);
+      // void fillEleClassesPlots( calib::CalibElectron*);
       
       void writeEleHistograms();
       void writeZHistograms();
       void writeMCEleHistograms();
       void writeMCZHistograms();
-      void writeHLTHistograms();
-      void writeEleClassesPlots();
+      // void writeHLTHistograms();
+      // void writeEleClassesPlots();
 
  private:
 
@@ -87,7 +89,8 @@ class ZeePlots {
       TH1F*  h1_gen_ZEta_;
       TH1F*  h1_gen_ZPhi_;
       TH1F*  h1_gen_ZPt_;
-      
+
+      /*
       TH1F* h1_FiredTriggers_;
       TH1F* h1_HLT1Electron_FiredEvents_ ;
       TH1F* h1_HLT2Electron_FiredEvents_;
@@ -97,6 +100,7 @@ class ZeePlots {
       TH1F* h1_HLT2Electron_HLT2ElectronRelaxed_FiredEvents_;
       TH1F* h1_HLT1Electron_HLT2Electron_HLT2ElectronRelaxed_FiredEvents_;
       TH1F* h1_HLTVisitedEvents_;
+      */
 
       TH1F* h1_mcEle_Energy_;
       TH1F* h1_mcElePt_;
@@ -109,17 +113,17 @@ class ZeePlots {
       TH1F* h1_recoElePhi_;
       TH1F* h1_nEleReco_;
 
-
       TH1F* h1_reco_ZEta_;
       TH1F* h1_reco_ZTheta_;
       TH1F* h1_reco_ZRapidity_;
       TH1F* h1_reco_ZPhi_;
       TH1F* h1_reco_ZPt_;      
 
+      /*
       TH1F* h1_occupancyVsEtaGold_;
       TH1F* h1_occupancyVsEtaSilver_;
       TH1F* h1_occupancyVsEtaCrack_;
       TH1F* h1_occupancyVsEtaShower_;
-      
+      */
 };
 #endif
