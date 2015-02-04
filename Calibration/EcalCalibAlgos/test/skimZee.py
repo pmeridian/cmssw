@@ -5,7 +5,9 @@ MC = True
 
 #electron cuts
 ELECTRON_ET_CUT_MIN = 20.0
-ELECTRON_CUTS = "(abs(superCluster.eta)<2.5) && (ecalEnergy*sin(superClusterPosition.theta)>" + str(ELECTRON_ET_CUT_MIN) + ")"
+#ELECTRON_CUTS = "(abs(superCluster.eta)<2.5) && (ecalEnergy*sin(superClusterPosition.theta)>" + str(ELECTRON_ET_CUT_MIN) + ")"
+ELECTRON_CUTS = "(abs(superCluster.eta)<2.5) && (ecalEnergy*sin(superClusterPosition.theta)>" + str(ELECTRON_ET_CUT_MIN) + ") && charge<0"
+POSITRON_CUTS = "(abs(superCluster.eta)<2.5) && (ecalEnergy*sin(superClusterPosition.theta)>" + str(ELECTRON_ET_CUT_MIN) + ") && charge>0"
 
 MASS_CUT_MIN = 60.
 
@@ -20,7 +22,7 @@ process.load('Configuration.EventContent.EventContent_cff')
 process.MessageLogger.cerr.FwkReport.reportEvery = 1000
 
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(200)
+    input = cms.untracked.int32(-1)
 )
 
 readFiles = cms.untracked.vstring()
@@ -34,7 +36,7 @@ process.source = cms.Source("PoolSource",
 
 process.options = cms.untracked.PSet(
     wantSummary = cms.untracked.bool(True)
-)
+    )
 
 # Other statements
 from Configuration.AlCa.GlobalTag import GlobalTag                        
@@ -42,22 +44,32 @@ if (MC):
     process.GlobalTag = GlobalTag(process.GlobalTag, 'PHYS14_25_V1', '')     
 else:
     process.GlobalTag.globaltag = 'GR_R_42_V17::All'   # chiara, da cambiare
-
+        
 
 process.selectedElectrons = cms.EDFilter("GsfElectronRefSelector",
-                                 src = cms.InputTag( 'gedGsfElectrons' ),
-                                 cut = cms.string( ELECTRON_CUTS )
-                             )
+                                         src = cms.InputTag( 'gedGsfElectrons' ),
+                                         cut = cms.string( ELECTRON_CUTS )
+                                         )
+
+process.selectedPositrons = cms.EDFilter("GsfElectronRefSelector",
+                                         src = cms.InputTag( 'gedGsfElectrons' ),
+                                         cut = cms.string( POSITRON_CUTS )
+                                         )
 
 process.ele_sequence = cms.Sequence(
-    process.selectedElectrons
+    process.selectedElectrons * process.selectedPositrons
     )
-
 
 process.filter = cms.Sequence()
 
+#process.tagGsf =  cms.EDProducer("CandViewShallowCloneCombiner",
+#                                 decay = cms.string("selectedElectrons selectedElectrons"),
+#                                 checkCharge = cms.bool(False),
+#                                 cut   = cms.string("mass > " + str(MASS_CUT_MIN))
+#                                 )
+
 process.tagGsf =  cms.EDProducer("CandViewShallowCloneCombiner",
-                                 decay = cms.string("selectedElectrons selectedElectrons"),
+                                 decay = cms.string("selectedElectrons selectedPositrons"),
                                  checkCharge = cms.bool(False),
                                  cut   = cms.string("mass > " + str(MASS_CUT_MIN))
                                  )
@@ -83,6 +95,9 @@ process.AODEventContent.outputCommands.extend( [
         "keep *_offlinePrimaryVertices_*_*",    # we do not save the collection with BS for the moment
         "keep *_*conversions*_*_*",
         "keep *_*offlineBeamSpot*_*_*",
+        "keep *_*particleFlowEGamma*_*_*",
+        "keep *_*particleFlowSuperClusterECAL*_*_*",
+        "keep *_*electronGsfTracks*_*_*",
         "keep *recoGenParticles_*genParticles*_*_*"] )
 
 process.ZeeSkimOutput = cms.OutputModule("PoolOutputModule",
