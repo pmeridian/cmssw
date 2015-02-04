@@ -379,10 +379,6 @@ void ZeeCalibration::endOfJob() {
     }
   }
 
-  // h2_fEtaBarrelGood_->Write();
-  // h2_fEtaBarrelBad_->Write();
-  // h2_fEtaEndcapGood_->Write();
-  // h2_fEtaEndcapBad_->Write();
   h1_eleClasses_->Write();
 
   h_eleEffEta_[0]->Write();
@@ -804,7 +800,7 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
 	}
 	myGenZMass = p->mass();
       }
-
+      
       // electrons from Z
       if (  abs( p->pdgId() ) == 11 && goodStatus) {
 
@@ -828,7 +824,7 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
 
       mcCnt++;
     }
-
+    
 #ifdef DEBUG_MC
     std::cout << "there are " << mcCnt << " mc particles " 
 	      << "and " << mcEle.size() << "ele/posi" << endl;
@@ -904,7 +900,7 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
        << hits->size()           << " rechits in EB, "
        << ehits->size()          << " rechits in EE, " << endl;
 #endif
-
+  
 #ifdef DEBUG_COLL
   std::cout<<"EB: ebScCollection->size() = " << ebScCollection->size() << std::endl;
   for(reco::SuperClusterCollection::const_iterator scIt = ebScCollection->begin(); scIt != ebScCollection->end(); scIt++) {
@@ -916,12 +912,12 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
   }
   std::cout << std::endl;
 #endif
-
+  
   // at least 2 superclusters must be present
   if(  ( ebScCollection->size()+eeScCollection->size() ) < 2) return kContinue;
   h1_Selection_->Fill(2.);
-
-
+  
+  
 
 
 
@@ -934,12 +930,12 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
     std::cerr << "Error! can't get the product pElectrons " << std::endl;
   }
   const reco::GsfElectronCollection* electronCollection = pElectrons.product();
-
+  
   if (!electronCollection){
     std::cout << "!electronCollection" << std::endl;
     return kContinue;
   }
-
+  
 #ifdef DEBUG_COLL
   std::cout<<"electronCollection->size() = " << electronCollection->size() << std::endl;
   for(reco::GsfElectronCollection::const_iterator eleIt = electronCollection->begin(); eleIt != electronCollection->end(); eleIt++) {
@@ -950,19 +946,19 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
 
   if(electronCollection->size() < 2) return kContinue; 
   h1_Selection_->Fill(3.);    
-
-
-
+  
+  
+  
   ///////////////////////////////////////////////////////////////////////////////////////
   ///                          START HERE....
   ///////////////////////////////////////////////////////////////////////////////////////
   
   read_events++;
-
+  
 #ifdef DEBUG
   std::cout <<" Starting with myZeePlots_->fillEleInfo(electronCollection); " << std::endl; 
 #endif
-
+  
   if (loopFlag_ == 0)
     myZeePlots_->fillEleInfo(electronCollection);
   
@@ -970,10 +966,13 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
   std::cout <<" Done with myZeePlots_->fillEleInfo(electronCollection); " << std::endl; 
 #endif
 
-  // Just to check the effect of acceptance cuts (chiara: hardcoded!)
+  // Just to check the effect of acceptance cuts
+  // chiara: hardcoded
   int okAcceptEle=0;
   for(reco::GsfElectronCollection::const_iterator eleIt = electronCollection->begin(); eleIt != electronCollection->end(); eleIt++) {
-    if ( fabs(eleIt->superCluster()->eta())<2.5 && eleIt->pt()>20) okAcceptEle++;
+    float sceta = eleIt->superCluster()->eta();
+    float sctheta = eleIt->superCluster()->position().theta();
+    if ( fabs(sceta)<2.5 && (eleIt->ecalEnergy())*(fabs(sin(sctheta)))>20 ) okAcceptEle++;
   }
   if (okAcceptEle>=2) h1_Selection_->Fill(4.);  
 
@@ -989,32 +988,36 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
     float DeltaRMineleSCendcap(0.15);
     int iSC=0;
 
-    // acceptance cuts (chiara: hardcoded!)
-    if ( fabs(eleIt->superCluster()->eta())>2.5 || eleIt->pt()<20) continue;
+    // acceptance cuts, chiara: hardcoded
+    float sceta = eleIt->superCluster()->eta();
+    float sctheta = eleIt->superCluster()->position().theta();
+    if ( fabs(sceta)>2.5 || (eleIt->ecalEnergy())*(fabs(sin(sctheta)))<20 ) continue;
   
     // loop on EB superClusters   
     int iscRefEB=-1;
-    for(reco::SuperClusterCollection::const_iterator scEbIt = ebScCollection->begin(); scEbIt != ebScCollection->end(); scEbIt++) {
-      double DeltaReleSC = sqrt ( pow( eleIt->eta() - scEbIt->eta(),2) + pow(eleIt->phi() - scEbIt->phi(),2));
-      // cout << "match in EB: SC " << iSC << ", dR=" << DeltaReleSC << ", min (before change)=" << DeltaRMineleSCbarrel << endl;
-      if(DeltaReleSC<DeltaRMineleSCbarrel) {
-	DeltaRMineleSCbarrel = DeltaReleSC;
-	iscRefEB = iSC;
+    if(eleIt->isEB()) {   // chiara: gap EB/EE excluded
+      for(reco::SuperClusterCollection::const_iterator scEbIt = ebScCollection->begin(); scEbIt != ebScCollection->end(); scEbIt++) {
+	double DeltaReleSC = sqrt ( pow( eleIt->eta() - scEbIt->eta(),2) + pow(eleIt->phi() - scEbIt->phi(),2));
+	if(DeltaReleSC<DeltaRMineleSCbarrel) {
+	  DeltaRMineleSCbarrel = DeltaReleSC;
+	  iscRefEB = iSC;
+	} 
+	iSC++;
       }
-      iSC++;
     }
     iSC = 0;
-
+    
     // loop on EE superClusters 
     int iscRefEE=-1;
-    for(reco::SuperClusterCollection::const_iterator scEeIt = eeScCollection->begin(); scEeIt != eeScCollection->end(); scEeIt++){
-      double DeltaReleSC = sqrt ( pow( eleIt->eta() - scEeIt->eta(),2) + pow(eleIt->phi() - scEeIt->phi(),2));
-      // cout << "match in EE: SC " << iSC << ", dR=" << DeltaReleSC << ", min (before change)=" << DeltaRMineleSCendcap << endl;
-      if(DeltaReleSC<DeltaRMineleSCendcap) {
-	DeltaRMineleSCendcap = DeltaReleSC;
-	iscRefEE = iSC;
+    if(eleIt->isEE()) {   // chiara: gap EB/EE excluded
+      for(reco::SuperClusterCollection::const_iterator scEeIt = eeScCollection->begin(); scEeIt != eeScCollection->end(); scEeIt++){
+	double DeltaReleSC = sqrt ( pow( eleIt->eta() - scEeIt->eta(),2) + pow(eleIt->phi() - scEeIt->phi(),2));
+	if(DeltaReleSC<DeltaRMineleSCendcap) {
+	  DeltaRMineleSCendcap = DeltaReleSC;
+	  iscRefEE = iSC;
+	}
+	iSC++;
       }
-      iSC++;
     }
     
     // gap between EB and EE excluded
@@ -1022,9 +1025,68 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
     bool matchEE = false;
     if(eleIt->isEB() && iscRefEB>-1) { matchEB=true; } 
     if(eleIt->isEE() && iscRefEE>-1) { matchEE=true; } 
-    // cout << "isEB = " << eleIt->isEB() << ", iscRefEB=" << iscRefEB 
-    //	 << ", isEE = " << eleIt->isEE() << ", iscRefEE=" << iscRefEE << endl; 
-    // if(!matchEB && !matchEE) { cout << "this electron is not matching any SC" << endl; continue; }
+    
+    // further check for cases where both phis are almost 3.14   
+    if( !matchEB && !matchEE && fabs(eleIt->phi())>3 ){ 
+      
+      float DRMineleSCbarrelBIS(0.15);
+      float DRMineleSCendcapBIS(0.15);
+
+      int iSCBIS=0;
+      int iscRefEBbis=-1;
+      int iscRefEEbis=-1;
+
+      // loop on EB superClusters   
+      if ( !matchEB ) {
+	if(eleIt->isEB()) {   // chiara: gap EB/EE excluded
+	  for(reco::SuperClusterCollection::const_iterator scEbIt = ebScCollection->begin(); scEbIt != ebScCollection->end(); scEbIt++) {
+	    if ( fabs(scEbIt->phi())>3 ) {
+	      if (eleIt->phi()*scEbIt->phi()<0) {   
+		if (eleIt->energy()/scEbIt->energy()>0.8 && eleIt->energy()/scEbIt->energy()<1.2) {
+		  double DeltaReleSCBis;
+		  DeltaReleSCBis = sqrt(pow( eleIt->eta() - scEbIt->eta(),2) + pow(eleIt->phi() + scEbIt->phi(),2));
+		  if (DeltaReleSCBis<DRMineleSCbarrelBIS) {
+		    DRMineleSCbarrelBIS = DeltaReleSCBis;
+		    iscRefEBbis = iSCBIS;
+		  }
+		}
+	      }
+	    }
+	    iSCBIS++;
+	  }
+	}
+	iSCBIS = 0;
+      }
+      
+      // loop on EE superClusters 
+      if ( !matchEE ) {
+	if(eleIt->isEE()) {   // chiara: gap EB/EE excluded
+	  for(reco::SuperClusterCollection::const_iterator scEeIt = eeScCollection->begin(); scEeIt != eeScCollection->end(); scEeIt++){
+	    if ( fabs(scEeIt->phi())>3 ) {
+	      if (eleIt->phi()*scEeIt->phi()<0) {  
+		if (eleIt->energy()/scEeIt->energy()>0.8 && eleIt->energy()/scEeIt->energy()<1.2) {
+		  double DeltaReleSCBis;
+		  DeltaReleSCBis = sqrt(pow( eleIt->eta() - scEeIt->eta(),2) + pow(eleIt->phi() + scEeIt->phi(),2));
+		  if (DeltaReleSCBis<DRMineleSCendcapBIS) {
+		    DRMineleSCendcapBIS = DeltaReleSCBis;
+		    iscRefEEbis = iSCBIS;
+		  }
+		}
+	      }
+	    }
+	    iSCBIS++;
+	  }
+	}
+      }
+
+      // update reference SC if now found
+      if ( iscRefEBbis>=0 && iscRefEB<0 ) iscRefEB = iscRefEBbis;
+      if ( iscRefEEbis>=0 && iscRefEE<0 ) iscRefEE = iscRefEEbis;
+    }
+    
+    if(eleIt->isEB() && iscRefEB>-1) { matchEB=true; } 
+    if(eleIt->isEE() && iscRefEE>-1) { matchEE=true; } 
+
     if(!matchEB && !matchEE) continue;
 
     if(matchEB)  
@@ -1063,7 +1125,7 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
   int  myBestZ=-1;
   mass = -1.;
   double DeltaMinvMin(5000.);
-  
+
   for(unsigned int e_it = 0 ; e_it != calibElectrons.size() - 1 ; e_it++) {
     for(unsigned int p_it = e_it + 1 ; p_it != calibElectrons.size() ; p_it++) {
       
@@ -1072,6 +1134,7 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
 		<< p_it << " " << calibElectrons[p_it].getRecoElectron()->charge() << std::endl;
 #endif		
       
+      // opposite charge
       if (calibElectrons[e_it].getRecoElectron()->charge() * calibElectrons[p_it].getRecoElectron()->charge() != -1) continue;
       
       // when selecting the same SC for the two electrons I drop the event 
@@ -1079,6 +1142,7 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
 
       // chiara: bisogna capire in 72x che correzioni sono applicate a ele->sc->energy
       mass = ZeeKinematicTools::calculateZMass_withTK(std::pair<calib::CalibElectron*,calib::CalibElectron*>(&(calibElectrons[e_it]),&(calibElectrons[p_it])));
+
       if (mass<0) continue;
       
 #ifdef DEBUG
@@ -1096,7 +1160,7 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
   }      
   
   h1_ZCandMult_->Fill(zeeCandidates.size());
-  
+
   if(zeeCandidates.size()==0 || myBestZ==-1 ) return kContinue;
   h1_Selection_->Fill(6.);
 
@@ -1320,18 +1384,22 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
   reco::GsfElectron::PflowIsolationVariables pfIso_2 = zeeCandidates[myBestZ].second->getRecoElectron()->pfIsolationVariables();
   float absIsoWdBeta_1 = pfIso_1.sumChargedHadronPt + std::max(0.0, pfIso_1.sumNeutralHadronEt + pfIso_1.sumPhotonEt - 0.5 * pfIso_1.sumPUPt);
   float absIsoWdBeta_2 = pfIso_2.sumChargedHadronPt + std::max(0.0, pfIso_2.sumNeutralHadronEt + pfIso_2.sumPhotonEt - 0.5 * pfIso_2.sumPUPt);
+  float thePt_1 = zeeCandidates[myBestZ].first->getRecoElectron()->pt();
+  float thePt_2 = zeeCandidates[myBestZ].second->getRecoElectron()->pt();
+  float relIso_1 = absIsoWdBeta_1/thePt_1;
+  float relIso_2 = absIsoWdBeta_2/thePt_2;
+
   bool okIso_1, okIso_2;
   if (fabs(eta1)<1.5) {
-    okIso_1 = absIsoWdBeta_1/pt_1 < isoCutEB;
+    okIso_1 = relIso_1 < isoCutEB;
   } else {
-    okIso_1 = absIsoWdBeta_1/pt_1 < isoCutEE;
+    okIso_1 = relIso_1 < isoCutEE;
   }
   if (fabs(eta2)<1.5) {
-    okIso_2 = absIsoWdBeta_2/pt_2 < isoCutEB;
+    okIso_2 = relIso_2 < isoCutEB;
   } else {
-    okIso_2 = absIsoWdBeta_2/pt_2 < isoCutEE;
+    okIso_2 = relIso_2 < isoCutEE;
   }
-
 
   // Impact parameter
   float d0_1 = (-1) * zeeCandidates[myBestZ].first->getRecoElectron()->gsfTrack()->dxy(pv.position() );
@@ -1407,7 +1475,7 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
 #endif
 
   if(! (invMassBool &&
-	pt_1 && pt_2 && eta_1 && eta_2 &&
+	pt_1 && pt_2 && eta_1 && eta_2 && 
 	okHoE_1 && okHoE_2 && okDPhi_1 && okDPhi_2 && okDEta_1 && okDEta_2 && 
 	okSieie_1 && okSieie_2 && 
 	okEP_1 && okEP_2 &&
@@ -1535,17 +1603,17 @@ void ZeeCalibration::startingNewLoop ( unsigned int iLoop ) {
 #endif
   
   theAlgorithm_->resetIteration();
-
+  
   resetVariables();
   
   resetHistograms(); 
 }
-
+ 
 // Called at end of loop
 // control plots; computation of new coefficients + residual miscalib; comparison new/old coeff
-edm::EDLooper::Status 
-ZeeCalibration::endOfLoop(const edm::EventSetup& iSetup, unsigned int iLoop) {
-  
+ edm::EDLooper::Status 
+   ZeeCalibration::endOfLoop(const edm::EventSetup& iSetup, unsigned int iLoop) {
+   
 #ifdef DEBUG
   std::cout<<"[ZeeCalibration] starting endOfLoop"<<std::endl;
 #endif
@@ -1704,26 +1772,8 @@ void ZeeCalibration::bookHistograms() {
 
   h1_seedOverSC_ = new TH1F("h1_seedOverSC", "h1_seedOverSC", 400, 0., 2.);
 
-  h1_borderElectronClassification_ = new TH1F("h1_borderElectronClassification", "h1_borderElectronClassification", 55, -5 , 50);
+  h1_borderElectronClassification_ = new TH1F("h1_borderElectronClassification", "h1_borderElectronClassification", 6, -1, 5);
   h1_preshowerOverSC_= new TH1F("h1_preshowerOverSC", "h1_preshowerOverSC", 400, 0., 1.);
-
-  /*
-  h2_fEtaBarrelGood_ = new TH2F("fEtaBarrelGood","fEtaBarrelGood",800,-4.,4.,800,0.8,1.2);
-  h2_fEtaBarrelGood_->SetXTitle("Eta");
-  h2_fEtaBarrelGood_->SetYTitle("1/fEtaBarrelGood");
-  
-  h2_fEtaBarrelBad_ = new TH2F("fEtaBarrelBad","fEtaBarrelBad",800,-4.,4.,800,0.8,1.2);
-  h2_fEtaBarrelBad_->SetXTitle("Eta");
-  h2_fEtaBarrelBad_->SetYTitle("1/fEtaBarrelBad");
-  
-  h2_fEtaEndcapGood_ = new TH2F("fEtaEndcapGood","fEtaEndcapGood",800,-4.,4.,800,0.8,1.2);
-  h2_fEtaEndcapGood_->SetXTitle("Eta");
-  h2_fEtaEndcapGood_->SetYTitle("1/fEtaEndcapGood");
-  
-  h2_fEtaEndcapBad_ = new TH2F("fEtaEndcapBad","fEtaEndcapBad",800,-4.,4.,800,0.8,1.2);
-  h2_fEtaEndcapBad_->SetXTitle("Eta");
-  h2_fEtaEndcapBad_->SetYTitle("1/fEtaEndcapBad");
-  */
 
   for (int i=0;i<2;i++) {
 
@@ -1838,7 +1888,7 @@ void ZeeCalibration::bookHistograms() {
   h1_occupancyEndcap_ = new TH1F("occupancyEndcap","occupancyEndcap",1000,0,10000);
   h1_occupancyEndcap_->SetXTitle("Weighted electron statistics");
   
-  h1_eleClasses_= new TH1F("eleClasses","eleClasses",7,-2,5);
+  h1_eleClasses_= new TH1F("eleClasses","eleClasses",6,-1,5);
   h1_eleClasses_->SetXTitle("classCode");
   h1_eleClasses_->SetYTitle("#");
 
@@ -2229,10 +2279,6 @@ void ZeeCalibration::resetHistograms(){
   // h1_electronCosTheta_SC_->Reset();
   // h1_electronCosTheta_SC_TK_->Reset();
   
-  // h2_fEtaBarrelGood_->Reset();
-  // h2_fEtaBarrelBad_->Reset();
-  // h2_fEtaEndcapGood_->Reset();
-  // h2_fEtaEndcapBad_->Reset();
   h1_eleClasses_->Reset();
   
   h1_ZCandMult_-> Reset();
