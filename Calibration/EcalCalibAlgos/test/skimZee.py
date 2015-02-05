@@ -49,16 +49,28 @@ from PhysicsTools.SelectorUtils.tools.vid_id_tools import *
 process.load("RecoEgamma.ElectronIdentification.egmGsfElectronIDs_cfi")
 from PhysicsTools.SelectorUtils.centralIDRegistry import central_id_registry
 process.egmGsfElectronIDSequence = cms.Sequence(process.egmGsfElectronIDs)
+process.egmGsfElectronIDs.physicsObjectSrc = cms.InputTag('tagElectrons')
+
 my_id_modules = ['RecoEgamma.ElectronIdentification.Identification.cutBasedElectronID_PHYS14_PU20bx25_V1_cff']
 for idmod in my_id_modules:
     setupAllVIDIdsInModule(process,idmod,setupVIDElectronSelection)
 
-process.filter = cms.EDFilter("ZeeCalibSkim",
-                                     electrons = cms.InputTag("gedGsfElectrons"),
-                                     electronIdMap = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-PHYS14-PU20bx25-V1-standalone-tight")
-                                     )
-
 process.zeeCalibSkimSeq = cms.Sequence()
+
+process.tagElectrons = cms.EDFilter("GsfElectronSelector",
+                                    src = cms.InputTag("gedGsfElectrons"),
+                                    cut = cms.string(ELECTRON_CUTS),
+                                    filter = cms.bool(True)
+                                    )
+
+process.zeeCalibSkimSeq *= ( process.tagElectrons )
+
+process.filter = cms.EDFilter("ZeeCalibSkim",
+                                     electrons = cms.InputTag("tagElectrons"),
+                                     electronIdMap = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-PHYS14-PU20bx25-V1-standalone-loose"),
+                              )
+
+
 
 process.zeeCalibSkimSeq *= ( process.egmGsfElectronIDSequence * process.filter)
 
