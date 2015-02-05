@@ -55,7 +55,7 @@ EcalRecalibRecHitProducer::EcalRecalibRecHitProducer(const edm::ParameterSet& ps
 }
 
 EcalRecalibRecHitProducer::~EcalRecalibRecHitProducer() {
-
+  
   if (EBalgo_) delete EBalgo_;
   if (EEalgo_) delete EEalgo_;
 
@@ -189,6 +189,7 @@ void EcalRecalibRecHitProducer::produce(edm::Event& evt, const edm::EventSetup& 
                         EERecalibRecHits->push_back( aHit );
                 }
         }
+
         // put the collection of recunstructed hits in the event   
         LogInfo("EcalRecalibRecHitInfo") << "total # EB re-calibrated rechits: " << EBRecalibRecHits->size();
         LogInfo("EcalRecalibRecHitInfo") << "total # EE re-calibrated rechits: " << EERecalibRecHits->size();

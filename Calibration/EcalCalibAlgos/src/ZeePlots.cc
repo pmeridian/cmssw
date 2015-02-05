@@ -24,7 +24,6 @@
 #include "TF1.h"
 #include "TRandom.h"
 
-
 #include <iostream>
 #include <string>
 #include <stdexcept>
@@ -32,35 +31,23 @@
 
 #include "DataFormats/EgammaCandidates/interface/GsfElectron.h"
 
-ZeePlots::ZeePlots( const char* fileName )
-{
-
+ZeePlots::ZeePlots( const char* fileName ) {
   fileName_ = fileName;
   file_ = new TFile(fileName_, "RECREATE");
 }
 
-
-ZeePlots::~ZeePlots()
-{
-  
+ZeePlots::~ZeePlots() {
   file_->Close();
-  
   delete file_;
-
 }
-
-//========================================================================
 
 void ZeePlots::openFile(){
 
-
   file_ -> cd();
-
 }
-//========================================================================
 
 void ZeePlots::bookZMCHistograms(){
-
+  
   file_ -> cd();
 
   h1_gen_ZMass_ = new TH1F("gen_ZMass","Generated Z mass",200,0.,150.);
@@ -82,8 +69,6 @@ void ZeePlots::bookZMCHistograms(){
   h1_gen_ZPt_ = new TH1F("gen_ZPt","Pt of gen Z",200, 0.,100.);
   h1_gen_ZPt_->SetXTitle("p_{T} (GeV/c)");
   h1_gen_ZPt_->SetYTitle("events");
-
-
 }
 
 void ZeePlots::bookZHistograms(){
@@ -109,25 +94,16 @@ void ZeePlots::bookZHistograms(){
   h1_reco_ZPt_ = new TH1F("reco_ZPt","Pt of reco Z",200,0.,100.);
   h1_reco_ZPt_->SetXTitle("p_{T} (GeV/c)");
   h1_reco_ZPt_->SetYTitle("events");
-  
-  
 }
 
-//========================================================================
-
 void ZeePlots::fillZInfo( std::pair<calib::CalibElectron*,calib::CalibElectron*> myZeeCandidate ) {
-
+  
   h1_reco_ZEta_->Fill( ZeeKinematicTools::calculateZEta(myZeeCandidate) );
   h1_reco_ZTheta_->Fill( ZeeKinematicTools::calculateZTheta(myZeeCandidate) );
   h1_reco_ZRapidity_->Fill( ZeeKinematicTools::calculateZRapidity(myZeeCandidate) );
   h1_reco_ZPhi_->Fill( ZeeKinematicTools::calculateZPhi(myZeeCandidate) );
   h1_reco_ZPt_->Fill( ZeeKinematicTools::calculateZPt(myZeeCandidate) );
-
 }
-
-
-
-//========================================================================
 
 void ZeePlots::writeZHistograms() {
 
@@ -137,11 +113,8 @@ void ZeePlots::writeZHistograms() {
   h1_reco_ZTheta_->Write();
   h1_reco_ZRapidity_->Write();
   h1_reco_ZPhi_->Write();
-  h1_reco_ZPt_->Write();
-  
+  h1_reco_ZPt_->Write();  
 }
-
-//========================================================================
 
 void ZeePlots::writeMCZHistograms() {
 
@@ -150,17 +123,16 @@ void ZeePlots::writeMCZHistograms() {
   h1_gen_ZRapidity_->Write();
   h1_gen_ZPt_->Write();
   h1_gen_ZPhi_->Write();
-
 }
 
-//========================================================================
-
+// not used and not revisited
+/*
 void ZeePlots::fillZMCInfo( const HepMC::GenEvent* myGenEvent ) {
 
   file_->cd();
 
   for ( HepMC::GenEvent::particle_const_iterator p = myGenEvent->particles_begin();
-	p != myGenEvent->particles_end(); ++p ) {//loop over MC particles
+	p != myGenEvent->particles_end(); ++p ) { 
  
     if ( (*p)->pdg_id() == 23 && (*p)->status() == 2 ){
       
@@ -172,16 +144,28 @@ void ZeePlots::fillZMCInfo( const HepMC::GenEvent* myGenEvent ) {
       h1_gen_ZRapidity_->Fill( genZ_Y );
       h1_gen_ZPt_->Fill((*p)->momentum().perp());
       h1_gen_ZPhi_->Fill((*p)->momentum().phi());
-
-      
-
     }
-  }//end loop over MC particles
+  }
+  
+  return;  
+}
+*/
+
+void ZeePlots::fillZMCInfo( TLorentzVector zP4 ) {
+
+  file_->cd();
+  
+  h1_gen_ZMass_->Fill( zP4.M() );
+  h1_gen_ZEta_ ->Fill( zP4.Eta() );
+  
+  float genZ_Y = 0.5 * log ( ( zP4.Energy() + zP4.Pz() ) /  ( zP4.Energy() - zP4.Pz() ) )   ;
+  h1_gen_ZRapidity_->Fill( genZ_Y );
+
+  h1_gen_ZPt_ ->Fill(zP4.Perp());
+  h1_gen_ZPhi_->Fill(zP4.Phi());
 
   return;  
 }
-
-//========================================================================
 
 void ZeePlots::bookEleMCHistograms(){
 
@@ -202,11 +186,10 @@ void ZeePlots::bookEleMCHistograms(){
   h1_mcElePhi_ = new TH1F("mcElePhi","Phi of MC electrons",100,-4.,4.);
   h1_mcElePhi_->SetXTitle("#phi");
   h1_mcElePhi_->SetYTitle("events");
-
 }
 
-//========================================================================
-
+// not used and not revisited
+/*
 void ZeePlots::fillEleMCInfo( const HepMC::GenEvent* myGenEvent ) {
 
   file_->cd();
@@ -220,14 +203,22 @@ void ZeePlots::fillEleMCInfo( const HepMC::GenEvent* myGenEvent ) {
 	h1_mcElePt_->Fill( (*p)->momentum().perp() );
 	h1_mcEleEta_->Fill( (*p)->momentum().eta() );
 	h1_mcElePhi_->Fill( (*p)->momentum().phi() );
-	
-      }//matches if (  abs( (*p)->pdg_id() ) == 11 )
+      }
 
-  }//end loop over MC particles
+  } //end loop over MC particles
+}
+*/
+
+void ZeePlots::fillEleMCInfo( TLorentzVector eleP4 ) {
+
+  file_->cd();
   
+  h1_mcEle_Energy_->Fill( eleP4.Energy() );
+  h1_mcElePt_->Fill( eleP4.Perp() );
+  h1_mcEleEta_->Fill( eleP4.Eta() );
+  h1_mcElePhi_->Fill( eleP4.Phi() );
 }
 
-//========================================================================
 void ZeePlots::bookEleHistograms(){
 
   file_->cd();
@@ -251,36 +242,27 @@ void ZeePlots::bookEleHistograms(){
   h1_recoElePhi_ = new TH1F("recoElePhi","Phi of reco electrons",100,-4.,4.);
   h1_recoElePhi_->SetXTitle("#phi");
   h1_recoElePhi_->SetYTitle("events");
-
-
-
 }
-
-//========================================================================
 
 void ZeePlots::fillEleInfo(const reco::GsfElectronCollection* electronCollection) {
 
   file_->cd();
-
+  
   h1_nEleReco_->Fill(electronCollection->size());
   
-  for(reco::GsfElectronCollection::const_iterator eleIt = electronCollection->begin();   eleIt != electronCollection->end(); eleIt++)
-    {
+  for(reco::GsfElectronCollection::const_iterator eleIt = electronCollection->begin(); 
+      eleIt != electronCollection->end(); eleIt++) {
       
-  file_->cd();
-
+      file_->cd();
+      
       h1_recoEleEnergy_->Fill( eleIt->superCluster()->energy() );
       h1_recoElePt_->Fill( eleIt->pt() );
       h1_recoEleEta_->Fill( eleIt->eta() );
       h1_recoElePhi_->Fill( eleIt->phi() );
-      
-    }//end loop on electrons   
-
+    }
 }
 
-//========================================================================
-
-void ZeePlots::writeEleHistograms(){
+void ZeePlots::writeEleHistograms() {
 
   file_->cd();
 
@@ -292,10 +274,7 @@ void ZeePlots::writeEleHistograms(){
   h1_recoElePhi_->Write();
 
   std::cout << "Done with ZeePlots::writeEleHistograms() " << std::endl;
-
 }
-
-//========================================================================
 
 void ZeePlots::writeMCEleHistograms(){
 
@@ -309,11 +288,10 @@ void ZeePlots::writeMCEleHistograms(){
   h1_mcElePhi_->Write();
 
   std::cout << "Done with ZeePlots::writeMCEleHistograms() " << std::endl;
-
 }
 
-//========================================================================
-
+// not used and not revisited
+/*
 void ZeePlots::bookHLTHistograms(){
 
   file_->cd();
@@ -331,13 +309,11 @@ void ZeePlots::bookHLTHistograms(){
   h1_HLT2Electron_HLT2ElectronRelaxed_FiredEvents_ =  new TH1F("h1_HLT2Electron_HLT2ElectronRelaxed_FiredEvents", "h1_HLT2Electron_HLT2ElectronRelaxed_FiredEvents", 5,0,5);
 
   h1_HLT1Electron_HLT2Electron_HLT2ElectronRelaxed_FiredEvents_ =  new TH1F("h1_HLT1Electron_HLT2Electron_HLT2ElectronRelaxed_FiredEvents", "h1_HLT1Electron_HLT2Electron_HLT2ElectronRelaxed_FiredEvents", 5,0,5);
-
-
 }
+*/
 
-
-//========================================================================
-
+// not used and not revisited 
+/*
 void ZeePlots::fillHLTInfo( edm::Handle<edm::TriggerResults> hltTriggerResultHandle ){
 
   file_->cd();
@@ -380,12 +356,11 @@ void ZeePlots::fillHLTInfo( edm::Handle<edm::TriggerResults> hltTriggerResultHan
 
   if(aHLTResults[32] && aHLTResults[34] && aHLTResults[35])
     h1_HLT1Electron_HLT2Electron_HLT2ElectronRelaxed_FiredEvents_->Fill(1);
-
-
-
 }
+*/
 
-
+// not used and not revisited
+/*
 void ZeePlots::fillEleClassesPlots( calib::CalibElectron* myEle ){
 
   int myClass = myEle->getRecoElectron()->classification();
@@ -411,10 +386,11 @@ void ZeePlots::fillEleClassesPlots( calib::CalibElectron* myEle ){
     h1_occupancyVsEtaSilver_->Fill(myEta);
   
   std::cout<< "[ZeePlots::fillEleClassesPlots]Done"<< std::endl;
-  
 }
+*/
 
-
+// not used and not revisited
+/*
 void ZeePlots::bookEleClassesPlots(){
 
   file_->cd();
@@ -434,9 +410,11 @@ void ZeePlots::bookEleClassesPlots(){
   h1_occupancyVsEtaCrack_ = new TH1F("occupancyVsEtaCrack","occupancyVsEtaCrack", 200, -4.,4.);
   h1_occupancyVsEtaCrack_->SetYTitle("Electron statistics");
   h1_occupancyVsEtaCrack_->SetXTitle("Eta channel");
-
 }
+*/
 
+// not used and not revisited
+/*
 void ZeePlots::writeEleClassesPlots(){
 
   file_->cd();
@@ -445,5 +423,5 @@ void ZeePlots::writeEleClassesPlots(){
   h1_occupancyVsEtaSilver_->Write();
   h1_occupancyVsEtaShower_->Write();
   h1_occupancyVsEtaCrack_->Write();
-
 }
+*/

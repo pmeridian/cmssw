@@ -53,7 +53,6 @@
 #include "TH1.h"
 #include "TH2.h"
 
-#include "SimDataFormats/GeneratorProducts/interface/HepMCProduct.h"
 #include "DataFormats/EgammaCandidates/interface/ElectronFwd.h"
 #include "DataFormats/EgammaCandidates/interface/Electron.h"
 #include "DataFormats/EgammaCandidates/interface/GsfElectron.h"
@@ -83,7 +82,7 @@ class ZeeCalibration : public edm::ESProducerLooper {
   virtual void produce(edm::Event&, const edm::EventSetup&) {};
   
   /// Called at beginning of job
-  virtual void beginOfJob();
+  virtual void beginOfJob(const edm::EventSetup&);
   
   /// Called at end of job
   virtual void endOfJob();
@@ -102,24 +101,15 @@ class ZeeCalibration : public edm::ESProducerLooper {
 
  private:
 
-/*   ElectronEnergyCorrector myCorrector; */
-/*   ElectronClassification myClassificator; */
-
-  double fEtaBarrelBad(double scEta) const;
-  double fEtaBarrelGood(double scEta) const;
-  double fEtaEndcapBad(double scEta) const;
-  double fEtaEndcapGood(double scEta) const;
+  //double fEtaBarrelBad(double scEta) const;
+  //double fEtaBarrelGood(double scEta) const;
+  //double fEtaEndcapBad(double scEta) const;
+  //double fEtaEndcapGood(double scEta) const;
 
   int ringNumberCorrector(int k);
-  double getEtaCorrection(const reco::GsfElectron*);
+  // double getEtaCorrection(const reco::GsfElectron*);
 
- \
-  void fillEleInfo(std::vector<HepMC::GenParticle*>& a, std::map<HepMC::GenParticle*,const reco::GsfElectron*>& b);
-  void fillMCInfo(HepMC::GenParticle* mcele);
-
-  void fillMCmap(const std::vector<const reco::GsfElectron*>* electronCollection, const std::vector<HepMC::GenParticle*>& mcEle,std::map<HepMC::GenParticle*,const reco::GsfElectron*>& myMCmap);
-  //  void fillMCmap(const reco::ElectronCollection* electronCollection, const std::vector<HepMC::GenParticle*>& mcEle,std::map<HepMC::GenParticle*,const reco::Electron*>& myMCmap);
-  
+  void fillEleInfo( std::vector<TLorentzVector> mcEle, const reco::GsfElectron* eleReco1, const reco::GsfElectron* eleReco2);
   float EvalDPhi(float Phi,float Phi_ref);
   float EvalDR(float Eta,float Eta_ref,float Phi,float Phi_ref);
 
@@ -138,33 +128,30 @@ class ZeeCalibration : public edm::ESProducerLooper {
 
   float computeCoefficientDistanceAtIteration( float v1[250], float v2[250], int size);
 
-  //  float Calculate_SigmaEtaEta(const reco::SuperCluster &passedCluster);
-
   // ----------member data ---------------------------
-
 
   TTree* myTree;
 
-  std::string outputFileName_;
+  std::string histoFileName_;
+  std::string zeeFileName_;
   
   std::string rechitProducer_;
   std::string rechitCollection_;
   std::string erechitProducer_;
   std::string erechitCollection_;
-  std::string scProducer_;
-  std::string scCollection_;
- 
-  std::string scIslandProducer_;
-  std::string scIslandCollection_;
-  
+
+  edm::InputTag ebSuperclusters_;  
+  edm::InputTag eeSuperclusters_;  
+
   std::string mcProducer_;
   std::string calibMode_;
 
-  std::string electronProducer_;
-  std::string electronCollection_;
-  
-  std::string RecalibBarrelHits_;
-  
+  edm::InputTag electrons_;
+
+  edm::InputTag vertices_;
+  edm::InputTag conversions_;
+  edm::InputTag beamspot_;
+
   unsigned int etaBins_;
   unsigned int etBins_;
 
@@ -200,10 +187,12 @@ class ZeeCalibration : public edm::ESProducerLooper {
   ZeeRescaleFactorPlots* myZeeRescaleFactorPlots_;
 
   // steering parameters
-  
   edm::ParameterSet theParameterSet;
 
-  //  TGraph* graph;
+  TH1F* h1_Selection_;
+
+  TH1F *h1_massBeforeCut_;
+  TH1F *h1_massAfterCut_;
 
   TH1F* h1_eventsBeforeEWKSelection_;
   TH1F* h1_eventsAfterEWKSelection_;
@@ -211,11 +200,10 @@ class ZeeCalibration : public edm::ESProducerLooper {
   TH1F* h1_eventsBeforeBorderSelection_;
   TH1F* h1_eventsAfterBorderSelection_;
 
-
-  TH2F* h2_fEtaBarrelGood_;
-  TH2F* h2_fEtaBarrelBad_;
-  TH2F* h2_fEtaEndcapGood_;
-  TH2F* h2_fEtaEndcapBad_;
+  // TH2F* h2_fEtaBarrelGood_;
+  // TH2F* h2_fEtaBarrelBad_;
+  // TH2F* h2_fEtaEndcapGood_;
+  // TH2F* h2_fEtaEndcapBad_;
   TH1F* h1_nEleReco_;
   TH1F* h1_eleClasses_;
 
@@ -227,8 +215,8 @@ class ZeeCalibration : public edm::ESProducerLooper {
   TH1F* h1_preshowerOverSC_;
 
   TH1F* h1_zMassResol_;
-  TH1F* h1_zEtaResol_;
-  TH1F* h1_zPhiResol_;
+  // TH1F* h1_zEtaResol_;
+  // TH1F* h1_zPhiResol_;
   TH1F* h1_reco_ZMass_;
 
   TH1F* h1_reco_ZMassCorr_;
@@ -250,9 +238,6 @@ class ZeeCalibration : public edm::ESProducerLooper {
   TH1F* h_ESCEtrue_[25];
   TH2F* h_ESCEtrueVsEta_[25];
 
-  TH1F* h_ESCcorrEtrue_[25];
-  TH2F* h_ESCcorrEtrueVsEta_[25];
-
   TH2F* h2_coeffVsEta_;
   TH2F* h2_coeffVsEtaGrouped_;
   TH2F* h2_zMassVsLoop_;
@@ -261,20 +246,14 @@ class ZeeCalibration : public edm::ESProducerLooper {
   TH2F* h2_coeffVsLoop_;
 
   TH2F* h2_miscalRecal_;
-  //  TH2F* h2_miscalRecalParz_[25];
   TH1F* h1_mc_;
   TH1F* h1_mcParz_[25];
-  /*
-  TH1F* h_DiffZMassDistr_[25];  
-  TH1F* h_ZMassDistr_[25];  
-  */
+
   TH2F* h2_residualSigma_;
   TH2F* h2_miscalRecalEB_;
-  //TH2F* h2_miscalRecalEBParz_[25];
   TH1F* h1_mcEB_;
   TH1F* h1_mcEBParz_[25];
   TH2F* h2_miscalRecalEE_;
-  //TH2F* h2_miscalRecalEEParz_[25];
   TH1F* h1_mcEE_;
   TH1F* h1_mcEEParz_[25];
 
@@ -301,12 +280,31 @@ class ZeeCalibration : public edm::ESProducerLooper {
   TH1F* h1_occupancyBarrel_;
   TH1F* h1_occupancyEndcap_;
   
-  TH1F* h1_electronCosTheta_TK_;
-  TH1F* h1_electronCosTheta_SC_;
-  TH1F* h1_electronCosTheta_SC_TK_;
+  // TH1F* h1_electronCosTheta_TK_;
+  // TH1F* h1_electronCosTheta_SC_;
+  // TH1F* h1_electronCosTheta_SC_TK_;
 
   TH1F* h1_borderElectronClassification_;
 
+  TH1F *h1_deltaEta;
+  TH1F *h1_deltaPhi;
+  TH1F *h1_sIeIe;
+  TH1F *h1_hoe;
+  TH1F *h1_eop;
+  TH1F *h1_do;
+  TH1F *h1_dz;
+  TH1F *h1_pfIso;
+  TH1F *h1_mhits;
+
+  TH1F *h1_afterEWK_deltaEta;
+  TH1F *h1_afterEWK_deltaPhi;
+  TH1F *h1_afterEWK_sIeIe;
+  TH1F *h1_afterEWK_hoe;
+  TH1F *h1_afterEWK_eop;
+  TH1F *h1_afterEWK_do;
+  TH1F *h1_afterEWK_dz;
+  TH1F *h1_afterEWK_pfIso;
+  TH1F *h1_afterEWK_mhits;
 
   Int_t BBZN,EBZN,EEZN,BBZN_gg,EBZN_gg,EEZN_gg,BBZN_tt,EBZN_tt,EEZN_tt,BBZN_t0,EBZN_t0,EEZN_t0;
   Int_t NEVT, MCZBB, MCZEB, MCZEE;
@@ -317,7 +315,7 @@ class ZeeCalibration : public edm::ESProducerLooper {
  
   bool wantEtaCorrection_;
 
-  unsigned int electronSelection_; 
+  int electronSelection_; 
 
   double loopArray[50];
   double sigmaArray[50];
@@ -332,16 +330,6 @@ class ZeeCalibration : public edm::ESProducerLooper {
 
   int GOLDEN_ELECTRONS_IN_BARREL;
   int GOLDEN_ELECTRONS_IN_ENDCAP;
-
-  int SILVER_ELECTRONS_IN_BARREL;
-  int SILVER_ELECTRONS_IN_ENDCAP;
-
-  int SHOWER_ELECTRONS_IN_BARREL;
-  int SHOWER_ELECTRONS_IN_ENDCAP;
-
-  int CRACK_ELECTRONS_IN_BARREL;
-  int CRACK_ELECTRONS_IN_ENDCAP;
-
 
   edm::InputTag hlTriggerResults_;
 
