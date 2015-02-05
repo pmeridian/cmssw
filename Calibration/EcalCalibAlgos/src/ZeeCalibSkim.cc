@@ -34,10 +34,16 @@ ZeeCalibSkim::filter(edm::Event& iEvent, const edm::EventSetup& iSetup)
   
   // Loop over electrons
   const auto& ele_refs = collection->refVector();
-  for( const auto& el : ele_refs ) {
+  int nPass=0;
+ 
+ for( const auto& el : ele_refs ) {
     bool isPass;
     isPass = (*id_decisions)[el];
-    std::cout << isPass << std::endl;
+    if (isPass) ++nPass;
   }
-  return true;
+  
+  if (nPass>=2)
+    return true;
+  else
+    return false;
 }
