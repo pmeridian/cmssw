@@ -66,8 +66,9 @@ process.tagElectrons = cms.EDFilter("GsfElectronSelector",
 process.zeeCalibSkimSeq *= ( process.tagElectrons )
 
 process.filter = cms.EDFilter("ZeeCalibSkim",
-                                     electrons = cms.InputTag("tagElectrons"),
-                                     electronIdMap = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-PHYS14-PU20bx25-V1-standalone-loose"),
+                              electrons = cms.InputTag("tagElectrons"),
+                              electronIdMap = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-PHYS14-PU20bx25-V1-standalone-loose"),
+                              mass_cut_low = cms.untracked.double(60.)
                               )
 
 

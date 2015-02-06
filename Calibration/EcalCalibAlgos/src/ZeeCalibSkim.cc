@@ -1,10 +1,13 @@
 #include "Calibration/EcalCalibAlgos/interface/ZeeCalibSkim.h"
 
 #include <iostream>
+#include <utility>
 
 ZeeCalibSkim::ZeeCalibSkim(const edm::ParameterSet& iConfig):
   electronCollectionToken_(consumes<edm::View<reco::GsfElectron> >(iConfig.getParameter<edm::InputTag>("electrons"))),
-  electronIdMapToken_(consumes<edm::ValueMap<bool> >(iConfig.getParameter<edm::InputTag>("electronIdMap")))
+  electronIdMapToken_(consumes<edm::ValueMap<bool> >(iConfig.getParameter<edm::InputTag>("electronIdMap"))),
+  mass_cut_low(static_cast<float>(iConfig.getUntrackedParameter<double>("mass_cut_low",60.))),
+  mass_cut_high(static_cast<float>(iConfig.getUntrackedParameter<double>("mass_cut_high",9999.)))
 {
 }
 
@@ -34,16 +37,30 @@ ZeeCalibSkim::filter(edm::Event& iEvent, const edm::EventSetup& iSetup)
   
   // Loop over electrons
   const auto& ele_refs = collection->refVector();
-  int nPass=0;
- 
- for( const auto& el : ele_refs ) {
-    bool isPass;
-    isPass = (*id_decisions)[el];
-    if (isPass) ++nPass;
-  }
   
-  if (nPass>=2)
-    return true;
-  else
+  std::vector<const reco::GsfElectron*> selElectrons;
+  for( const auto& el : ele_refs ) 
+    {
+      bool isPass;
+      isPass = (*id_decisions)[el];
+      if (isPass)
+	selElectrons.push_back(&(*el));
+    }
+  
+  if (selElectrons.size()<2)
     return false;
+  
+  std::vector<const reco::GsfElectron*>::const_iterator ibegin=selElectrons.begin(),
+    iend = selElectrons.end(), iele = ibegin, jele = iele + 1;
+  for ( ; iele != iend - 1; ++iele ) {
+    for ( ; jele != iend; ++jele ) {
+      //di-electron object
+      Candidate::LorentzVector diEle=(*iele)->p4()+(*jele)->p4();
+      if (diEle.M()>=mass_cut_low &&
+	  diEle.M()<=mass_cut_high
+	  )
+	  return true;
+    }
+  }
+  return false;
 }

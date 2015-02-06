@@ -28,4 +28,7 @@ class ZeeCalibSkim : public edm::EDFilter {
   // ----------member data ---------------------------
   edm::EDGetTokenT<edm::View<reco::GsfElectron> > electronCollectionToken_;
   edm::EDGetTokenT<edm::ValueMap<bool> > electronIdMapToken_;
+  
+  float mass_cut_low;
+  float mass_cut_high;
  };
