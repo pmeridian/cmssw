@@ -38,7 +38,7 @@ process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_condD
 process.MessageLogger.cerr.FwkReport.reportEvery = 1000
 
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(300)
+    input = cms.untracked.int32(-1)
 )
 
 # chiara
@@ -46,7 +46,8 @@ process.maxEvents = cms.untracked.PSet(
 #from Calibration.EcalCalibAlgos.Cert_160404_172802_cff import *
 readFiles = cms.untracked.vstring()
 readFiles.extend( [
-        "file:fileAOD.root"   
+        #"file:fileAOD.root"   
+        "file:zeeSkimChiara.root"
         ] )
 
 process.source = cms.Source("PoolSource",
@@ -83,9 +84,9 @@ process.ecalRecHit.EERecalibRecHitCollection = "EcalRecHitsEE"          # quale 
                                                                         # RecoParticleFlow/PFClusterProducer/interface/PFEcalRecHitCreator.h
 
 # chiara:
-# non so come cambiare il nome alla collezione di rechits reduced che deve diventare EcalRecHitsES invece di reducedEcalRecHitsES                  
-# giro questo modulo dummy che si limita a cambiare il nome.                                                                                       
-# non servira' quando girero' sui raw => NB: a me servono i rechits tutti, ma negli AOD ci sono solo i reducedEcalRecHitsES                        
+# non so come cambiare il nome alla collezione di rechits reduced che deve diventare EcalRecHitsES invece di reducedEcalRecHitsES         
+# giro questo modulo dummy che si limita a cambiare il nome.                                                                      
+# non servira' quando girero' sui raw => NB: a me servono i rechits tutti, ma negli AOD ci sono solo i reducedEcalRecHitsES            
 process.load("RecoLocalCalo.EcalRecProducers.esDummyRecHit_cfi")
 process.ecalPreshowerRecHit.ESRecHitCollection = "reducedEcalRecHitsES"
 
@@ -93,7 +94,7 @@ process.ecalPreshowerRecHit.ESRecHitCollection = "reducedEcalRecHitsES"
 process.load('RecoParticleFlow.PFClusterProducer.particleFlowRecHitECAL_cfi')
 process.load('RecoParticleFlow.PFClusterProducer.particleFlowRecHitPS_cfi') 
 
-# PF clustering                                                                                                                                 
+# PF clustering       
 process.load('RecoParticleFlow.PFClusterProducer.particleFlowClusterECALUncorrected_cfi')
 process.load('RecoParticleFlow.PFClusterProducer.particleFlowClusterECAL_cfi')
 process.load('RecoParticleFlow.PFClusterProducer.particleFlowClusterPS_cfi') 
@@ -122,14 +123,14 @@ process.particleFlowSuperClusterECAL.PFSuperClusterCollectionEndcapWithPreshower
 process.load("Calibration.EcalCalibAlgos.zeeCalibration_cff")
 
 # chiara: parametri eventualmente da cambiare
-process.looper.maxLoops = cms.untracked.uint32(2)              # chiara: era 7
+process.looper.maxLoops = cms.untracked.uint32(1)              # chiara: era 7
 process.looper.electronSelection = cms.untracked.int32(-1)     # 0-1-2-3-4; -1 to do nothing
 process.looper.histoFile = cms.string('myHistograms_test.root')
 process.looper.zeeFile = cms.string('myZeePlots_test.root')
 process.looper.initialMiscalibrationBarrel = cms.untracked.string('')
 process.looper.initialMiscalibrationEndcap = cms.untracked.string('')
 process.looper.ZCalib_CalibType = cms.untracked.string('RING')
-process.looper.ZCalib_InvMass = cms.untracked.string('SCMass')
+process.looper.ZCalib_InvMass = cms.untracked.string('SCTRMass')
 # chiara: dovrebbero restare cosi'
 process.looper.rechitProducer   = cms.string('ecalRecHit')                          
 process.looper.rechitCollection = cms.string('EcalRecHitsEB') 
@@ -215,12 +216,14 @@ process.out = cms.OutputModule("PoolOutputModule",
                 fileName = cms.untracked.string("testOut.root")
         )
 
+#process.Timing = cms.Service("Timing")
+
 process.zFilterPath = cms.Path( # process.tagGsfSeq *     #chiara: capire perche' se lo accendo e non trova niente continua lo stesso e crasha dopo
                                                           # per ora lo spengo, ma va capito
                                 process.ecalRecHit * process.ecalPreshowerRecHit * 
                                 process.particleFlowRecHitPS * process.particleFlowClusterPS *    
                                 process.particleFlowRecHitECAL * process.particleFlowClusterECALUncorrected * process.particleFlowClusterECAL *
                                 process.particleFlowSuperClusterECAL )
-                                # * process.gedElectronRecalibSCAssociator )
+                                ## * process.gedElectronRecalibSCAssociator )
 
 process.outpath = cms.EndPath(process.out)
