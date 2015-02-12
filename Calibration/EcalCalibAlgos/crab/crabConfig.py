@@ -1,5 +1,8 @@
-from WMCore.Configuration import Configuration
-config = Configuration()
+from CRABClient.UserUtilities import config
+config = config()
+
+#from WMCore.Configuration import Configuration
+#config = Configuration()
 
 config.section_("General")
 config.General.requestName = 'DYJetsToLL_Phys14DR_zeeSkim'
@@ -19,11 +22,11 @@ config.Data.inputDBS = 'global'
 #config.Data.lumiMask = 'Cert_190456-208686_8TeV_PromptReco_Collisions12_JSON.txt' # if you downloaded the file in the working directory
 #config.Data.runRange = '211760-211831' # '193093-194075'
 config.Data.splitting = "FileBased"
-config.Data.unitsPerJob = 1
+config.Data.unitsPerJob = 10
 config.Data.publication = False
 #config.Data.publishDBS = 'phys03'
 #config.Data.publishDataName = 'ECAL-multifit-50ns'
-config.Data.outLFN = "/store/group/dpg_ecal/alca_ecalcalib/crovelli/zeeSkim"
+config.Data.outLFN = "/store/user/meridian/zeeCalibSkim"
 
 config.section_("Site")
-config.Site.storageSite = "T2_CH_CERN"
+config.Site.storageSite = "T2_IT_Rome"

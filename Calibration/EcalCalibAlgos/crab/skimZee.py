@@ -98,7 +98,7 @@ process.AODEventContent.outputCommands.extend( [
 process.ZeeSkimOutput = cms.OutputModule("PoolOutputModule",
                                          splitLevel = cms.untracked.int32(0),
                                          outputCommands = process.AODEventContent.outputCommands,
-                                         fileName = cms.untracked.string('/tmp/zeeSkim.root'),
+                                         fileName = cms.untracked.string('zeeCalibSkim.root'),
                                          SelectEvents = cms.untracked.PSet(SelectEvents = cms.vstring('zFilterPath')),
                                          dataset = cms.untracked.PSet(
         filterName = cms.untracked.string(''),
