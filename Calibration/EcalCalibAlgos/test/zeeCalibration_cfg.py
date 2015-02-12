@@ -42,24 +42,21 @@ process.maxEvents = cms.untracked.PSet(
 )
 
 # chiara
-#from Calibration.EcalCalibAlgos.DoubleElectron_Jul05_ALCAELECTRON_zSkim_cff import *
-#from Calibration.EcalCalibAlgos.Cert_160404_172802_cff import *
-readFiles = cms.untracked.vstring()
-readFiles.extend( [
-        #"file:fileAOD.root"   
-        "file:zeeSkimChiara.root"
-        ] )
-
+from Calibration.EcalCalibAlgos.DYJetsToLLPhys14SkimZee_cff import *
 process.source = cms.Source("PoolSource",
                             fileNames = readFiles,
 )
+#readFiles = cms.untracked.vstring()
+#readFiles.extend( [
+#        "file:zeeSkimChiara.root"
+#        ] )
+#process.source = cms.Source("PoolSource",
+#                            fileNames = readFiles,
+#)
 
 if (not isMC):
     process.source.lumisToProcess = goodLumis                            
 
-process.options = cms.untracked.PSet(
-    wantSummary = cms.untracked.bool(True)
-)
 
 # Other statements
 from Configuration.AlCa.GlobalTag import GlobalTag
@@ -211,10 +208,9 @@ if (not isMC):
 
 process.tagGsfSeq *=  (  process.Zele_sequence * process.tagGsfFilter )
 
-
 process.out = cms.OutputModule("PoolOutputModule",
-                fileName = cms.untracked.string("testOut.root")
-        )
+                               fileName = cms.untracked.string("/tmp/crovelli/testOut.root")
+                               )
 
 #process.Timing = cms.Service("Timing")
 
@@ -226,4 +222,4 @@ process.zFilterPath = cms.Path( # process.tagGsfSeq *     #chiara: capire perche
                                 process.particleFlowSuperClusterECAL )
                                 ## * process.gedElectronRecalibSCAssociator )
 
-process.outpath = cms.EndPath(process.out)
+#process.outpath = cms.EndPath(process.out)
