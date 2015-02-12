@@ -95,6 +95,7 @@ ZeeCalibration::ZeeCalibration(const edm::ParameterSet& iConfig) {
   // algo parameters and options
   theMaxLoops = iConfig.getUntrackedParameter<unsigned int>("maxLoops",0);
   wantEtaCorrection_ = iConfig.getUntrackedParameter<bool>("wantEtaCorrection",false);   
+  requireOppositeCharge_ = iConfig.getUntrackedParameter<bool>("requireOppositeCharge",false);   
 
   minInvMassCut_ = iConfig.getUntrackedParameter<double>("minInvMassCut", 70.);   
   maxInvMassCut_ = iConfig.getUntrackedParameter<double>("maxInvMassCut", 110.);   
@@ -1135,7 +1136,7 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
 #endif		
       
       // opposite charge
-      if (calibElectrons[e_it].getRecoElectron()->charge() * calibElectrons[p_it].getRecoElectron()->charge() != -1) continue;
+      if ( requireOppositeCharge_ && (calibElectrons[e_it].getRecoElectron()->charge() * calibElectrons[p_it].getRecoElectron()->charge() != -1) ) continue;
       
       // when selecting the same SC for the two electrons I drop the event 
       if (calibElectrons[e_it].getParentSuperCluster() == calibElectrons[p_it].getParentSuperCluster()) continue;
