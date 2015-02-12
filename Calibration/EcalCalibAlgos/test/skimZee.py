@@ -6,6 +6,8 @@ MC = True
 #electron cuts
 ELECTRON_ET_CUT_MIN = 20.0
 ELECTRON_CUTS = "(abs(superCluster.eta)<2.5) && (ecalEnergy*sin(superClusterPosition.theta)>" + str(ELECTRON_ET_CUT_MIN) + ")"
+#ELECTRON_CUTS = "(abs(superCluster.eta)<2.5) && (ecalEnergy*sin(superClusterPosition.theta)>" + str(ELECTRON_ET_CUT_MIN) + ") && charge<0"
+#POSITRON_CUTS = "(abs(superCluster.eta)<2.5) && (ecalEnergy*sin(superClusterPosition.theta)>" + str(ELECTRON_ET_CUT_MIN) + ") && charge>0"
 
 MASS_CUT_MIN = 60.
 
@@ -34,7 +36,7 @@ process.source = cms.Source("PoolSource",
 
 process.options = cms.untracked.PSet(
     wantSummary = cms.untracked.bool(True)
-)
+    )
 
 # Other statements
 from Configuration.AlCa.GlobalTag import GlobalTag                        
@@ -42,7 +44,7 @@ if (MC):
     process.GlobalTag = GlobalTag(process.GlobalTag, 'PHYS14_25_V1', '')     
 else:
     process.GlobalTag.globaltag = 'GR_R_42_V17::All'   # chiara, da cambiare
-
+        
 
 # START ELECTRON ID SECTION
 from PhysicsTools.SelectorUtils.tools.vid_id_tools import *
@@ -68,7 +70,8 @@ process.zeeCalibSkimSeq *= ( process.tagElectrons )
 process.filter = cms.EDFilter("ZeeCalibSkim",
                               electrons = cms.InputTag("tagElectrons"),
                               electronIdMap = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-PHYS14-PU20bx25-V1-standalone-loose"),
-                              mass_cut_low = cms.untracked.double(60.)
+                              mass_cut_low = cms.untracked.double(60.),
+                              requireOppositeCharge = cms.untracked.bool(False)
                               )
 
 
@@ -102,8 +105,6 @@ process.ZeeSkimOutput = cms.OutputModule("PoolOutputModule",
         dataTier = cms.untracked.string('ALCARECO')
         )
                                           )                                          
-#print "OUTPUTCOMMANDS"
-#print process.AODEventContent.outputCommands
  
 process.ZeeSkimOutput_step = cms.EndPath(process.ZeeSkimOutput)
 

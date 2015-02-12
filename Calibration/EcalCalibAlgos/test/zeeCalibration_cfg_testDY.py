@@ -1,16 +1,16 @@
 import FWCore.ParameterSet.Config as cms
 
+###### ------------   configuration --------------------- #######
 isMC = True
-HLTProcessName = 'HLT'
 #prescale = 1
+
+# to read the HLT menu - should be always this one
+HLTProcessName = "HLT"
+
+###### ------------   configuration --------------------- #######
 
 processName='ZEECALIB'
 process = cms.Process(processName)
-
-#process.prescaler = cms.EDFilter("Prescaler",
-#                                    prescaleFactor = cms.int32(prescale),
-#                                    prescaleOffset = cms.int32(0)
-#                                    )
 
 # import of standard configurations
 process.load('Configuration.StandardSequences.Services_cff')
@@ -19,7 +19,6 @@ process.load('FWCore.MessageService.MessageLogger_cfi')
 process.load('Configuration.StandardSequences.GeometryRecoDB_cff')
 process.load('Configuration.StandardSequences.MagneticField_38T_PostLS1_cff')  
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_condDBv2_cff')
-process.load('Configuration.StandardSequences.EndOfProcess_cff')
 
 process.MessageLogger.cerr.FwkReport.reportEvery = 1000
 
@@ -36,10 +35,9 @@ process.source = cms.Source("PoolSource",
 if (not isMC):
     process.source.lumisToProcess = goodLumis                            
 
-# NOT TO BE ADDED!!!
-#process.options = cms.untracked.PSet(
-#    wantSummary = cms.untracked.bool(True)
-#)
+process.options = cms.untracked.PSet(
+    wantSummary = cms.untracked.bool(True)
+)
 
 # Other statements
 from Configuration.AlCa.GlobalTag import GlobalTag
@@ -48,6 +46,7 @@ if (not isMC):
 else:
     process.GlobalTag = GlobalTag(process.GlobalTag, 'PHYS14_25_V1', '') 
 
+
 process.load('RecoLocalCalo.EcalRecAlgos.EcalSeverityLevelESProducer_cfi')
 process.load("RecoLocalCalo.EcalRecProducers.ecalRecalibRecHit_cfi")
 process.ecalRecHit.doEnergyScale = cms.bool(False)       
@@ -55,14 +54,9 @@ process.ecalRecHit.doIntercalib = cms.bool(True)
 process.ecalRecHit.doLaserCorrection = cms.bool(False)
 process.ecalRecHit.EBRecHitCollection = "reducedEcalRecHitsEB"          
 process.ecalRecHit.EERecHitCollection = "reducedEcalRecHitsEE"          
-process.ecalRecHit.EBRecalibRecHitCollection = "EcalRecHitsEB"          # chiara: si chiamano EcalRecHitsEB ma sono reduced. Da capire 
-process.ecalRecHit.EERecalibRecHitCollection = "EcalRecHitsEE"          # quale formato ci sara'. Inoltre, considera che il PF dopo
-                                                                        # avrebbe bisogno i non reduced! che sono usati in
-                                                                        # RecoParticleFlow/PFClusterProducer/interface/PFEcalRecHitCreator.h
-# chiara:
-# non so come cambiare il nome alla collezione di rechits reduced che deve diventare EcalRecHitsES invece di reducedEcalRecHitsES         
-# giro questo modulo dummy che si limita a cambiare il nome.                                                                      
-# non servira' quando girero' sui raw => NB: a me servono i rechits tutti, ma negli AOD ci sono solo i reducedEcalRecHitsES            
+process.ecalRecHit.EBRecalibRecHitCollection = "EcalRecHitsEB"          
+process.ecalRecHit.EERecalibRecHitCollection = "EcalRecHitsEE"          
+                                                                        
 process.load("RecoLocalCalo.EcalRecProducers.esDummyRecHit_cfi")
 process.ecalPreshowerRecHit.ESRecHitCollection = "reducedEcalRecHitsES"
 
@@ -76,7 +70,6 @@ process.load('RecoParticleFlow.PFClusterProducer.particleFlowClusterECAL_cfi')
 process.load('RecoParticleFlow.PFClusterProducer.particleFlowClusterPS_cfi') 
 process.load("RecoEcal.EgammaClusterProducers.particleFlowSuperClusterECAL_cfi")
 
-# chiara: bisogna spegnere la regression? 
 process.particleFlowSuperClusterECAL.PFBasicClusterCollectionBarrel = cms.string('recalibParticleFlowBasicClusterECALBarrel')
 process.particleFlowSuperClusterECAL.PFSuperClusterCollectionBarrel = cms.string('recalibParticleFlowSuperClusterECALBarrel')
 process.particleFlowSuperClusterECAL.PFBasicClusterCollectionEndcap = cms.string('recalibParticleFlowBasicClusterECALEndcap')
@@ -84,9 +77,8 @@ process.particleFlowSuperClusterECAL.PFSuperClusterCollectionEndcap = cms.string
 process.particleFlowSuperClusterECAL.PFBasicClusterCollectionPreshower = cms.string('recalibParticleFlowBasicClusterECALPreshower')
 process.particleFlowSuperClusterECAL.PFSuperClusterCollectionEndcapWithPreshower = cms.string('recalibParticleFlowSuperClusterECALEndcapWithPreshower')
 
-## chiara: algo di calibrazione vero e proprio
 process.load("Calibration.EcalCalibAlgos.zeeCalibration_cff")
-process.looper.maxLoops = cms.untracked.uint32(1)              # chiara: era 7
+process.looper.maxLoops = cms.untracked.uint32(3)              # chiara: era 7
 process.looper.electronSelection = cms.untracked.int32(-1)     # 0-1-2-3-4; -1 to do nothing
 process.looper.histoFile = cms.string('myHistograms_test.root')
 process.looper.zeeFile = cms.string('myZeePlots_test.root')
@@ -94,7 +86,6 @@ process.looper.initialMiscalibrationBarrel = cms.untracked.string('')
 process.looper.initialMiscalibrationEndcap = cms.untracked.string('')
 process.looper.ZCalib_CalibType = cms.untracked.string('RING')
 process.looper.ZCalib_InvMass = cms.untracked.string('SCTRMass')
-# chiara: dovrebbero restare cosi'
 process.looper.rechitProducer   = cms.string('ecalRecHit')                          
 process.looper.rechitCollection = cms.string('EcalRecHitsEB') 
 process.looper.erechitProducer  = cms.string('ecalRecHit')                          
@@ -103,12 +94,17 @@ process.looper.ebSuperclusters = cms.InputTag("particleFlowSuperClusterECAL","re
 process.looper.eeSuperclusters = cms.InputTag("particleFlowSuperClusterECAL","recalibParticleFlowSuperClusterECALEndcapWithPreshower",processName)
 process.looper.electrons = cms.InputTag("gedGsfElectrons","","RECO")
 process.looper.HLTriggerResults = cms.InputTag("TriggerResults","",HLTProcessName)    
+#Setting to null value avoids reading mc infos
+#process.looper.mcProducer = cms.untracked.string('')           
 
-process.zFilterPath = cms.Path( 
-    process.ecalRecHit * process.ecalPreshowerRecHit * 
-    process.particleFlowRecHitPS * process.particleFlowClusterPS *    
-    process.particleFlowRecHitECAL * process.particleFlowClusterECALUncorrected * process.particleFlowClusterECAL *
-    process.particleFlowSuperClusterECAL )
+process.out = cms.OutputModule("PoolOutputModule",
+                               outputCommands = "drop *_*_*_*",
+                               fileName = cms.untracked.string("/tmp/crovelli/testOut.root")
+                               )
 
-process.end_step = cms.EndPath(process.endOfProcess)
-process.Schedule = cms.Schedule(process.zFilterPath,process.end_step)
+process.zFilterPath = cms.Path( process.ecalRecHit * process.ecalPreshowerRecHit * 
+                                process.particleFlowRecHitPS * process.particleFlowClusterPS *    
+                                process.particleFlowRecHitECAL * process.particleFlowClusterECALUncorrected * process.particleFlowClusterECAL *
+                                process.particleFlowSuperClusterECAL )
+
+process.outpath = cms.EndPath(process.out)

@@ -31,4 +31,5 @@ class ZeeCalibSkim : public edm::EDFilter {
   
   float mass_cut_low;
   float mass_cut_high;
+  bool requireOppositeCharge;
  };

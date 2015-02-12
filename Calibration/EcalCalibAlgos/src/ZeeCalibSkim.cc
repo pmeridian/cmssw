@@ -7,7 +7,8 @@ ZeeCalibSkim::ZeeCalibSkim(const edm::ParameterSet& iConfig):
   electronCollectionToken_(consumes<edm::View<reco::GsfElectron> >(iConfig.getParameter<edm::InputTag>("electrons"))),
   electronIdMapToken_(consumes<edm::ValueMap<bool> >(iConfig.getParameter<edm::InputTag>("electronIdMap"))),
   mass_cut_low(static_cast<float>(iConfig.getUntrackedParameter<double>("mass_cut_low",60.))),
-  mass_cut_high(static_cast<float>(iConfig.getUntrackedParameter<double>("mass_cut_high",9999.)))
+  mass_cut_high(static_cast<float>(iConfig.getUntrackedParameter<double>("mass_cut_high",9999.))),
+  requireOppositeCharge(static_cast<bool>(iConfig.getUntrackedParameter<bool>("requireOppositeCharge",false)))
 {
 }
 
@@ -54,8 +55,13 @@ ZeeCalibSkim::filter(edm::Event& iEvent, const edm::EventSetup& iSetup)
     iend = selElectrons.end(), iele = ibegin, jele = iele + 1;
   for ( ; iele != iend - 1; ++iele ) {
     for ( ; jele != iend; ++jele ) {
+
+      if (requireOppositeCharge && (*iele)->charge()+(*jele)->charge() != -1)
+	continue;
+
       //di-electron object
       Candidate::LorentzVector diEle=(*iele)->p4()+(*jele)->p4();
+
       if (diEle.M()>=mass_cut_low &&
 	  diEle.M()<=mass_cut_high
 	  )
