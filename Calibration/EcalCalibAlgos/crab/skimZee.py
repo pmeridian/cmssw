@@ -5,9 +5,9 @@ MC = True
 
 #electron cuts
 ELECTRON_ET_CUT_MIN = 20.0
-#ELECTRON_CUTS = "(abs(superCluster.eta)<2.5) && (ecalEnergy*sin(superClusterPosition.theta)>" + str(ELECTRON_ET_CUT_MIN) + ")"
-ELECTRON_CUTS = "(abs(superCluster.eta)<2.5) && (ecalEnergy*sin(superClusterPosition.theta)>" + str(ELECTRON_ET_CUT_MIN) + ") && charge<0"
-POSITRON_CUTS = "(abs(superCluster.eta)<2.5) && (ecalEnergy*sin(superClusterPosition.theta)>" + str(ELECTRON_ET_CUT_MIN) + ") && charge>0"
+ELECTRON_CUTS = "(abs(superCluster.eta)<2.5) && (ecalEnergy*sin(superClusterPosition.theta)>" + str(ELECTRON_ET_CUT_MIN) + ")"
+#ELECTRON_CUTS = "(abs(superCluster.eta)<2.5) && (ecalEnergy*sin(superClusterPosition.theta)>" + str(ELECTRON_ET_CUT_MIN) + ") && charge<0"
+#POSITRON_CUTS = "(abs(superCluster.eta)<2.5) && (ecalEnergy*sin(superClusterPosition.theta)>" + str(ELECTRON_ET_CUT_MIN) + ") && charge>0"
 
 MASS_CUT_MIN = 60.
 
@@ -27,7 +27,7 @@ process.maxEvents = cms.untracked.PSet(
 
 readFiles = cms.untracked.vstring()
 readFiles.extend( [
-        "file:fileAOD.root"   # MC DY file from phys14
+        "/store/user/crovelli/testCalibZee/fileAOD.root"   # MC DY file from phys14
 ] )
 
 process.source = cms.Source("PoolSource",
@@ -46,48 +46,42 @@ else:
     process.GlobalTag.globaltag = 'GR_R_42_V17::All'   # chiara, da cambiare
         
 
-process.selectedElectrons = cms.EDFilter("GsfElectronRefSelector",
-                                         src = cms.InputTag( 'gedGsfElectrons' ),
-                                         cut = cms.string( ELECTRON_CUTS )
-                                         )
+# START ELECTRON ID SECTION
+from PhysicsTools.SelectorUtils.tools.vid_id_tools import *
+process.load("RecoEgamma.ElectronIdentification.egmGsfElectronIDs_cfi")
+from PhysicsTools.SelectorUtils.centralIDRegistry import central_id_registry
+process.egmGsfElectronIDSequence = cms.Sequence(process.egmGsfElectronIDs)
+process.egmGsfElectronIDs.physicsObjectSrc = cms.InputTag('tagElectrons')
 
-process.selectedPositrons = cms.EDFilter("GsfElectronRefSelector",
-                                         src = cms.InputTag( 'gedGsfElectrons' ),
-                                         cut = cms.string( POSITRON_CUTS )
-                                         )
+my_id_modules = ['RecoEgamma.ElectronIdentification.Identification.cutBasedElectronID_PHYS14_PU20bx25_V1_cff']
+for idmod in my_id_modules:
+    setupAllVIDIdsInModule(process,idmod,setupVIDElectronSelection)
 
-process.ele_sequence = cms.Sequence(
-    process.selectedElectrons * process.selectedPositrons
-    )
+process.zeeCalibSkimSeq = cms.Sequence()
 
-process.filter = cms.Sequence()
+process.tagElectrons = cms.EDFilter("GsfElectronSelector",
+                                    src = cms.InputTag("gedGsfElectrons"),
+                                    cut = cms.string(ELECTRON_CUTS),
+                                    filter = cms.bool(True)
+                                    )
 
-#process.tagGsf =  cms.EDProducer("CandViewShallowCloneCombiner",
-#                                 decay = cms.string("selectedElectrons selectedElectrons"),
-#                                 checkCharge = cms.bool(False),
-#                                 cut   = cms.string("mass > " + str(MASS_CUT_MIN))
-#                                 )
+process.zeeCalibSkimSeq *= ( process.tagElectrons )
 
-process.tagGsf =  cms.EDProducer("CandViewShallowCloneCombiner",
-                                 decay = cms.string("selectedElectrons selectedPositrons"),
-                                 checkCharge = cms.bool(False),
-                                 cut   = cms.string("mass > " + str(MASS_CUT_MIN))
-                                 )
+process.filter = cms.EDFilter("ZeeCalibSkim",
+                              electrons = cms.InputTag("tagElectrons"),
+                              electronIdMap = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-PHYS14-PU20bx25-V1-standalone-loose"),
+                              mass_cut_low = cms.untracked.double(60.),
+                              requireOppositeCharge = cms.untracked.bool(False)
+                              )
 
-process.tagGsfCounter = cms.EDFilter("CandViewCountFilter",
-                                     src = cms.InputTag("tagGsf"),
-                                     minNumber = cms.uint32(1)
-                                     )
 
-process.filter *= (process.tagGsf * process.tagGsfCounter)
 
-process.tagGsfSeq = cms.Sequence()
+process.zeeCalibSkimSeq *= ( process.egmGsfElectronIDSequence * process.filter)
 
-process.tagGsfSeq *= (process.ele_sequence * process.filter)
-
-process.zFilterPath = cms.Path( process.tagGsfSeq )
+process.zFilterPath = cms.Path( process.zeeCalibSkimSeq )
 
 process.AODEventContent.outputCommands.extend( [
+#        "keep *_*_*_*",
         "drop *_*_*_*",
         "keep *_*gedGsfElectron*_*_*",
         "keep *_*reducedEcalRecHits*_*_*",
@@ -98,20 +92,19 @@ process.AODEventContent.outputCommands.extend( [
         "keep *_*particleFlowEGamma*_*_*",
         "keep *_*particleFlowSuperClusterECAL*_*_*",
         "keep *_*electronGsfTracks*_*_*",
-        "keep *recoGenParticles_*genParticles*_*_*"] )
+        "keep *recoGenParticles_*genParticles*_*_*"
+        ] )
 
 process.ZeeSkimOutput = cms.OutputModule("PoolOutputModule",
                                          splitLevel = cms.untracked.int32(0),
                                          outputCommands = process.AODEventContent.outputCommands,
-                                         fileName = cms.untracked.string('zeeSkimMC.root'),
+                                         fileName = cms.untracked.string('/tmp/zeeSkim.root'),
                                          SelectEvents = cms.untracked.PSet(SelectEvents = cms.vstring('zFilterPath')),
                                          dataset = cms.untracked.PSet(
         filterName = cms.untracked.string(''),
         dataTier = cms.untracked.string('ALCARECO')
         )
                                           )                                          
-#print "OUTPUTCOMMANDS"
-#print process.AODEventContent.outputCommands
  
 process.ZeeSkimOutput_step = cms.EndPath(process.ZeeSkimOutput)
 
