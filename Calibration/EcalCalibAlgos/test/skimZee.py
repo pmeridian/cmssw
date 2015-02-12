@@ -20,7 +20,7 @@ process.load('Configuration.EventContent.EventContent_cff')
 process.MessageLogger.cerr.FwkReport.reportEvery = 1000
 
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(200)
+    input = cms.untracked.int32(-1)
 )
 
 readFiles = cms.untracked.vstring()
@@ -78,6 +78,7 @@ process.zeeCalibSkimSeq *= ( process.egmGsfElectronIDSequence * process.filter)
 process.zFilterPath = cms.Path( process.zeeCalibSkimSeq )
 
 process.AODEventContent.outputCommands.extend( [
+#        "keep *_*_*_*",
         "drop *_*_*_*",
         "keep *_*gedGsfElectron*_*_*",
         "keep *_*reducedEcalRecHits*_*_*",
@@ -88,12 +89,13 @@ process.AODEventContent.outputCommands.extend( [
         "keep *_*particleFlowEGamma*_*_*",
         "keep *_*particleFlowSuperClusterECAL*_*_*",
         "keep *_*electronGsfTracks*_*_*",
-        "keep *recoGenParticles_*genParticles*_*_*"] )
+        "keep *recoGenParticles_*genParticles*_*_*"
+        ] )
 
 process.ZeeSkimOutput = cms.OutputModule("PoolOutputModule",
                                          splitLevel = cms.untracked.int32(0),
                                          outputCommands = process.AODEventContent.outputCommands,
-                                         fileName = cms.untracked.string('zeeSkimChiara.root'),
+                                         fileName = cms.untracked.string('/tmp/zeeSkim.root'),
                                          SelectEvents = cms.untracked.PSet(SelectEvents = cms.vstring('zFilterPath')),
                                          dataset = cms.untracked.PSet(
         filterName = cms.untracked.string(''),

@@ -314,6 +314,7 @@ class ZeeCalibration : public edm::ESProducerLooper {
   unsigned int theMaxLoops;     // Number of loops to loop
  
   bool wantEtaCorrection_;
+  bool requireOppositeCharge_;
 
   int electronSelection_; 
 

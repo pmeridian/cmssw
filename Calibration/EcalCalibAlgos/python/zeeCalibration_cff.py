@@ -3,6 +3,7 @@ import FWCore.ParameterSet.Config as cms
 looper = cms.Looper("ZeeCalibration",
     maxLoops = cms.untracked.uint32(10),
     wantEtaCorrection = cms.untracked.bool(False),
+#    requireOppositeCharge = cms.untracked.bool(False),
     minInvMassCut = cms.untracked.double(70),
     maxInvMassCut = cms.untracked.double(110),
     electronSelection = cms.untracked.int32(-1),
