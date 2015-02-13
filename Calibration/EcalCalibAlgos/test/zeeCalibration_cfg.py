@@ -30,7 +30,7 @@ process.maxEvents = cms.untracked.PSet(
 # chiara
 from Calibration.EcalCalibAlgos.DYJetsToLLPhys14SkimZee_cff import *
 process.source = cms.Source("PoolSource",
-                            fileNames = readFiles,
+                            fileNames = readFilesRM,
 )
 
 if (not isMC):

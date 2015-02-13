@@ -1,7 +1,6 @@
 import FWCore.ParameterSet.Config as cms
 
 readFiles = cms.untracked.vstring()
-
 readFiles.extend( [
 
 "/store/group/dpg_ecal/alca_ecalcalib/crovelli/zeeSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150204_205926/0000/zeeSkimMC_1.root",
@@ -270,3 +269,36 @@ readFiles.extend( [
 "/store/group/dpg_ecal/alca_ecalcalib/crovelli/zeeSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150204_205926/0000/zeeSkimMC_98.root",
 "/store/group/dpg_ecal/alca_ecalcalib/crovelli/zeeSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150204_205926/0000/zeeSkimMC_99.root"
     ] )
+
+
+readFilesRM = cms.untracked.vstring()
+readFilesRM.extend( [
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_4.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_16.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_10.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_22.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_12.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_26.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_17.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_20.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_7.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_14.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_18.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_2.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_9.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_19.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_11.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_21.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_15.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_24.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_3.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_23.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_8.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_13.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_25.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_1.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_6.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_5.root",
+"/store/user/meridian/zeeCalibSkim/DYJetsToLL_M-50_13TeV-madgraph-pythia8/crab_DYJetsToLL_Phys14DR_zeeSkim/150212_195611/0000/zeeCalibSkim_27.root"
+]
+)
