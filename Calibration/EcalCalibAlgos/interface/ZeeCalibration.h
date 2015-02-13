@@ -109,11 +109,6 @@ class ZeeCalibration : public edm::ESProducerLooper {
   int ringNumberCorrector(int k);
   // double getEtaCorrection(const reco::GsfElectron*);
 
-  void fillEleInfo( std::vector<TLorentzVector> mcEle, const reco::GsfElectron* eleReco1, const reco::GsfElectron* eleReco2);
-  float EvalDPhi(float Phi,float Phi_ref);
-  float EvalDR(float Eta,float Eta_ref,float Phi,float Phi_ref);
-
-
   void bookHistograms();
 
   void resetVariables();

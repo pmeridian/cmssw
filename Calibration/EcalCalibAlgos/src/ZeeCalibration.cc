@@ -54,6 +54,8 @@
 #include "DataFormats/CaloRecHit/interface/CaloRecHit.h"
 #include "DataFormats/Common/interface/TriggerResults.h"
 
+#include "DataFormats/Math/interface/deltaR.h"
+
 #include "HLTrigger/HLTanalyzers/interface/HLTrigReport.h"
 
 #include "CLHEP/Vector/LorentzVector.h"
@@ -720,126 +722,7 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
 #endif
 
   h1_Selection_->Fill(0.);
-
-
-  // --------------------------   HLT begin  ---------------------
-#ifdef DEBUG
-  std::cout<<"[ZeeCalibration::duringLoop] Starting HLT analysis "<<std::endl;
-#endif
-
-  for(unsigned int iHLT=0; iHLT<200; ++iHLT) aHLTResults[iHLT] = false;
-  
-  edm::Handle<edm::TriggerResults> hltTriggerResultHandle;
-  iEvent.getByLabel(hlTriggerResults_, hltTriggerResultHandle);
-  if(!hltTriggerResultHandle.isValid()) {
-    std::cout << "invalid handle for HLT TriggerResults" << std::endl;
-  } else {
-    
-    hltCount = hltTriggerResultHandle->size();
-    if (hltCount>200) cout << "BE CAREFUL! The HLT menu has " << hltCount << " paths: more than 200 you can handle!" << endl;
-    
-    const edm::TriggerNames & trgNames = iEvent.triggerNames(*hltTriggerResultHandle);
-    unsigned int trgSize = trgNames.size();
-#ifdef DEBUG_HLT
-    std::cout << "Trigger menu size = " << trgSize << std::endl;  
-    for ( unsigned int i=0; i<trgSize; ++i ) 
-      std::cout << "path " << i << " ==> " << trgNames.triggerName(i) << std::endl;  
-#endif
-
-    for ( unsigned int i=0; i<trgSize; ++i ) {       
-      aHLTResults[i] = hltTriggerResultHandle->accept(i);      
-    }                                                                                                                                                
-    // chiara: questi sono i path di Phys14 - da rivedere con i nuovi menu dumpando con le righe sopra
-    // chiara: per il momento comunque lo spengo
-    // path 30 ==> HLT_Ele27_eta2p1_WP85_Gsf_v1
-    // path 31 ==> HLT_Ele32_eta2p1_WP85_Gsf_v1
-    // path 32 ==> HLT_DoubleEle33_CaloIdL_GsfTrkIdVL_v1
-    // path 64 ==> HLT_Ele23_Ele12_CaloId_TrackId_Iso_v1
-    // path 92 ==> HLT_Ele20WP60_Ele8_Mass55_v1
-    // path 93 ==> HLT_Ele25WP60_SC4_Mass55_v1
-    // if(!aHLTResults[30] && !aHLTResults[31] && !aHLTResults[32] && !aHLTResults[64] && !aHLTResults[92] && !aHLTResults[93]) return kContinue;
-  }
-  
   h1_Selection_->Fill(1.);
-
-#ifdef DEBUG_HLT
-  std::cout<<"[ZeeCalibration::duringLoop] End HLT analysis => number of paths = " << hltTriggerResultHandle->size() << std::endl;
-#endif
-  // --------------------------   HLT end  ---------------------  
-  
-
-  // --------------------------   MC truth begin ---------------------
-#ifdef DEBUG
-  cout << "want to run on MC truth ==> " << !mcProducer_.empty() << endl;
-#endif
-
-  std::vector<TLorentzVector> mcEle;
-  float myGenZMass(-1);     
-
-  if (!mcProducer_.empty()) {
-    
-    Handle<GenParticleCollection> genPcHandle;
-    iEvent.getByLabel(mcProducer_, genPcHandle);
-    const reco::GenParticleCollection *genPcColl = genPcHandle.product();
-    
-#ifdef DEBUG_MC
-    std::cout<<"[ZeeCalibration::duringLoop] Loaded GenParticleCollection "<<std::endl;
-#endif    
-
-    // loop over mc particles to count them and to check electrons and Z
-    int mcCnt = 0;
-    for (GenParticleCollection::const_iterator p = genPcColl->begin(); p != genPcColl->end(); ++p) {
-
-      bool goodStatus = false;
-      if (p->status()==1 || p->status()==22 || p->status()==23) goodStatus = true;
-
-      // Z
-      if ( p->pdgId() == 23 && goodStatus){
-	if (fabs((*p).eta())<=4) {         // chiara: lo metto io per evitare crash
-	  TLorentzVector thisTLV( (*p).px(), (*p).py(), (*p).pz(), (*p).energy() );
-	  if (loopFlag_ == 0) myZeePlots_->fillZMCInfo(thisTLV);
-	}
-	myGenZMass = p->mass();
-      }
-      
-      // electrons from Z
-      if (  abs( p->pdgId() ) == 11 && goodStatus) {
-
-	int mothId = -100;
-	const reco::Candidate & cand = *p; 
-	GenParticleCollection::const_iterator p2;
-	for (p2 = genPcColl->begin(); p2 != genPcColl->end(); ++p2) {
-	  const reco::Candidate *mom = cand.mother();                                                                       
-	  if(&(*p2)==&(*mom)) {    
-	    mothId = p2->pdgId();
-	    break;
-	  }
-	}
-	
-	if (mothId==23) {
-	  TLorentzVector thisTLV( (*p).px(), (*p).py(), (*p).pz(), (*p).energy() );
-	  if (loopFlag_ == 0) myZeePlots_ ->fillEleMCInfo( thisTLV );
-	  mcEle.push_back(thisTLV);
-	}
-      }
-
-      mcCnt++;
-    }
-    
-#ifdef DEBUG_MC
-    std::cout << "there are " << mcCnt << " mc particles " 
-	      << "and " << mcEle.size() << "ele/posi" << endl;
-    std::cout << "Zgen mass = " << myGenZMass << endl;     
-#endif
-
-    if(mcEle.size()==2 && fabs(mcEle[0].Eta())<2.4 &&  fabs(mcEle[1].Eta())<2.4 ){
-      NEVT++;
-      if( fabs(mcEle[0].Eta())<1.479 && fabs(mcEle[1].Eta())<1.479 ) MCZBB++;
-      if( (fabs(mcEle[0].Eta())>1.479 && fabs(mcEle[1].Eta())<1.479) || (fabs(mcEle[0].Eta())<1.479 && fabs(mcEle[1].Eta())>1.479) ) MCZEB++;
-      if( fabs(mcEle[0].Eta())>1.479 && fabs(mcEle[1].Eta())>1.479 ) MCZEE++;
-    }      
-  }    
-  // --------------------------   MC truth end ---------------------
 
   // Get EBRecHits
   Handle<EBRecHitCollection> phits;
@@ -867,9 +750,6 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
     std::cout << "hits->size() == 0" << std::endl;   
     return kContinue;
   }  
-
-
-
 
   // Get SuperClusters in EB
   Handle<reco::SuperClusterCollection> pSuperClustersEB;
@@ -920,9 +800,6 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
   
   
 
-
-
-
   // Get Electrons
   Handle<reco::GsfElectronCollection> pElectrons;
   try {
@@ -948,8 +825,6 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
   if(electronCollection->size() < 2) return kContinue; 
   h1_Selection_->Fill(3.);    
   
-  
-  
   ///////////////////////////////////////////////////////////////////////////////////////
   ///                          START HERE....
   ///////////////////////////////////////////////////////////////////////////////////////
@@ -960,151 +835,63 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
   std::cout <<" Starting with myZeePlots_->fillEleInfo(electronCollection); " << std::endl; 
 #endif
   
-  if (loopFlag_ == 0)
-    myZeePlots_->fillEleInfo(electronCollection);
+  // if (loopFlag_ == 0)
+  //   myZeePlots_->fillEleInfo(electronCollection);
   
 #ifdef DEBUG
   std::cout <<" Done with myZeePlots_->fillEleInfo(electronCollection); " << std::endl; 
 #endif
 
-  // Just to check the effect of acceptance cuts
-  // chiara: hardcoded
-  int okAcceptEle=0;
-  for(reco::GsfElectronCollection::const_iterator eleIt = electronCollection->begin(); eleIt != electronCollection->end(); eleIt++) {
-    float sceta = eleIt->superCluster()->eta();
-    float sctheta = eleIt->superCluster()->position().theta();
-    if ( fabs(sceta)<2.5 && (eleIt->ecalEnergy())*(fabs(sin(sctheta)))>20 ) okAcceptEle++;
-  }
-  if (okAcceptEle>=2) h1_Selection_->Fill(4.);  
-
-
   // Filling new ElectronCollection with new SC ref and calibElectron container
   std::vector<calib::CalibElectron> calibElectrons;
 
   // Geometrical match between superclusters and electrons
-  unsigned int the_eit=0;
   for(reco::GsfElectronCollection::const_iterator eleIt = electronCollection->begin(); eleIt != electronCollection->end(); eleIt++) {
+
+    if (!(eleIt->parentSuperCluster()))
+      continue;
 
     float DeltaRMineleSCbarrel(0.15);
     float DeltaRMineleSCendcap(0.15);
-    int iSC=0;
 
-    // acceptance cuts, chiara: hardcoded
-    float sceta = eleIt->superCluster()->eta();
-    float sctheta = eleIt->superCluster()->position().theta();
-    if ( fabs(sceta)>2.5 || (eleIt->ecalEnergy())*(fabs(sin(sctheta)))<20 ) continue;
-  
+    const reco::SuperCluster* sc=0;
+
     // loop on EB superClusters   
-    int iscRefEB=-1;
-    if(eleIt->isEB()) {   // chiara: gap EB/EE excluded
-      for(reco::SuperClusterCollection::const_iterator scEbIt = ebScCollection->begin(); scEbIt != ebScCollection->end(); scEbIt++) {
-	double DeltaReleSC = sqrt ( pow( eleIt->eta() - scEbIt->eta(),2) + pow(eleIt->phi() - scEbIt->phi(),2));
-	if(DeltaReleSC<DeltaRMineleSCbarrel) {
-	  DeltaRMineleSCbarrel = DeltaReleSC;
-	  iscRefEB = iSC;
-	} 
-	iSC++;
-      }
-    }
-    iSC = 0;
-    
-    // loop on EE superClusters 
-    int iscRefEE=-1;
-    if(eleIt->isEE()) {   // chiara: gap EB/EE excluded
-      for(reco::SuperClusterCollection::const_iterator scEeIt = eeScCollection->begin(); scEeIt != eeScCollection->end(); scEeIt++){
-	double DeltaReleSC = sqrt ( pow( eleIt->eta() - scEeIt->eta(),2) + pow(eleIt->phi() - scEeIt->phi(),2));
-	if(DeltaReleSC<DeltaRMineleSCendcap) {
-	  DeltaRMineleSCendcap = DeltaReleSC;
-	  iscRefEE = iSC;
-	}
-	iSC++;
-      }
-    }
-    
-    // gap between EB and EE excluded
-    bool matchEB = false;
-    bool matchEE = false;
-    if(eleIt->isEB() && iscRefEB>-1) { matchEB=true; } 
-    if(eleIt->isEE() && iscRefEE>-1) { matchEE=true; } 
-    
-    // further check for cases where both phis are almost 3.14   
-    if( !matchEB && !matchEE && fabs(eleIt->phi())>3 ){ 
-      
-      float DRMineleSCbarrelBIS(0.15);
-      float DRMineleSCendcapBIS(0.15);
-
-      int iSCBIS=0;
-      int iscRefEBbis=-1;
-      int iscRefEEbis=-1;
-
-      // loop on EB superClusters   
-      if ( !matchEB ) {
-	if(eleIt->isEB()) {   // chiara: gap EB/EE excluded
-	  for(reco::SuperClusterCollection::const_iterator scEbIt = ebScCollection->begin(); scEbIt != ebScCollection->end(); scEbIt++) {
-	    if ( fabs(scEbIt->phi())>3 ) {
-	      if (eleIt->phi()*scEbIt->phi()<0) {   
-		if (eleIt->energy()/scEbIt->energy()>0.8 && eleIt->energy()/scEbIt->energy()<1.2) {
-		  double DeltaReleSCBis;
-		  DeltaReleSCBis = sqrt(pow( eleIt->eta() - scEbIt->eta(),2) + pow(eleIt->phi() + scEbIt->phi(),2));
-		  if (DeltaReleSCBis<DRMineleSCbarrelBIS) {
-		    DRMineleSCbarrelBIS = DeltaReleSCBis;
-		    iscRefEBbis = iSCBIS;
-		  }
-		}
-	      }
-	    }
-	    iSCBIS++;
+    if(eleIt->isEB()) 
+      {   // chiara: gap EB/EE excluded
+	for(reco::SuperClusterCollection::const_iterator scEbIt = ebScCollection->begin(); scEbIt != ebScCollection->end(); scEbIt++) 
+	  {
+	    double DeltaReleSC = deltaR(eleIt->parentSuperCluster()->eta(),eleIt->parentSuperCluster()->phi(),scEbIt->eta(),scEbIt->phi());
+	      if(DeltaReleSC<DeltaRMineleSCbarrel) 
+		{
+		  DeltaRMineleSCbarrel = DeltaReleSC;
+		  sc=&(*scEbIt);
+		} 
 	  }
-	}
-	iSCBIS = 0;
-      }
-      
-      // loop on EE superClusters 
-      if ( !matchEE ) {
-	if(eleIt->isEE()) {   // chiara: gap EB/EE excluded
-	  for(reco::SuperClusterCollection::const_iterator scEeIt = eeScCollection->begin(); scEeIt != eeScCollection->end(); scEeIt++){
-	    if ( fabs(scEeIt->phi())>3 ) {
-	      if (eleIt->phi()*scEeIt->phi()<0) {  
-		if (eleIt->energy()/scEeIt->energy()>0.8 && eleIt->energy()/scEeIt->energy()<1.2) {
-		  double DeltaReleSCBis;
-		  DeltaReleSCBis = sqrt(pow( eleIt->eta() - scEeIt->eta(),2) + pow(eleIt->phi() + scEeIt->phi(),2));
-		  if (DeltaReleSCBis<DRMineleSCendcapBIS) {
-		    DRMineleSCendcapBIS = DeltaReleSCBis;
-		    iscRefEEbis = iSCBIS;
-		  }
-		}
-	      }
-	    }
-	    iSCBIS++;
+      } 
+    else if(eleIt->isEE()) 
+      {   // chiara: gap EB/EE excluded
+	for(reco::SuperClusterCollection::const_iterator scEeIt = eeScCollection->begin(); scEeIt != eeScCollection->end(); scEeIt++){
+	  double DeltaReleSC = deltaR(eleIt->parentSuperCluster()->eta(),eleIt->parentSuperCluster()->phi(),scEeIt->eta(),scEeIt->phi());
+	  if(DeltaReleSC<DeltaRMineleSCendcap) {
+	    DeltaRMineleSCendcap = DeltaReleSC;
+	    sc = &(*scEeIt);
 	  }
 	}
       }
-
-      // update reference SC if now found
-      if ( iscRefEBbis>=0 && iscRefEB<0 ) iscRefEB = iscRefEBbis;
-      if ( iscRefEEbis>=0 && iscRefEE<0 ) iscRefEE = iscRefEEbis;
-    }
     
-    if(eleIt->isEB() && iscRefEB>-1) { matchEB=true; } 
-    if(eleIt->isEE() && iscRefEE>-1) { matchEE=true; } 
+    if(!sc) continue;
 
-    if(!matchEB && !matchEE) continue;
+    calibElectrons.push_back(calib::CalibElectron(&(*eleIt),sc,hits,ehits));
 
-    if(matchEB)  
-      calibElectrons.push_back(calib::CalibElectron(&((*electronCollection)[the_eit]),&((*ebScCollection)[iscRefEB]),hits,ehits));
-    if(matchEE) 
-      calibElectrons.push_back(calib::CalibElectron(&((*electronCollection)[the_eit]),&((*eeScCollection)[iscRefEE]),hits,ehits));
-			       
 #ifdef DEBUG
     std::cout << "calibElectrons.back().getParentSuperCluster()->energy() = " 
 	      << calibElectrons.back().getParentSuperCluster()->energy() 
 	      << ", calibElectrons.back().getRecoElectron()->energy() = " 
 	      << calibElectrons.back().getRecoElectron()->energy() << std::endl;
 #endif
-    
-    the_eit++;
   }
-
+  
 #ifdef DEBUG
   std::cout << "calibElectrons.size() = " << calibElectrons.size() << endl; 
 #endif
@@ -1112,7 +899,6 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
 #ifdef DEBUG
   std::cout << "Filled histos" << std::endl;
 #endif  
-
 
   // COMBINATORY FOR Z MASS - begin 
   if (calibElectrons.size() < 2) return kContinue;
@@ -1149,7 +935,6 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
 #ifdef DEBUG
       std::cout << "####################### mass = " << mass << std::endl;
 #endif
-
       zeeCandidates.push_back(std::pair<calib::CalibElectron*,calib::CalibElectron*>(&(calibElectrons[e_it]),&(calibElectrons[p_it])));
 
       double DeltaMinv = fabs(mass - MZ); 
@@ -1165,13 +950,12 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
   if(zeeCandidates.size()==0 || myBestZ==-1 ) return kContinue;
   h1_Selection_->Fill(6.);
 
-  if (loopFlag_ == 0)
-    myZeePlots_->fillZInfo( zeeCandidates[myBestZ] );
+  // if (loopFlag_ == 0)
+  //   myZeePlots_->fillZInfo( zeeCandidates[myBestZ] );
   
 #ifdef DEBUG  
   std::cout << "Found ZCandidates: " << myBestZ << std::endl;
 #endif  
-
 
   // -----------------------------------  DUMP ELECTRON CLASS
   // Classification:
@@ -1196,11 +980,9 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
   if( class2==0 && fabs(eta2)<1.5) GOLDEN_ELECTRONS_IN_BARREL++;
   if( class2==0 && fabs(eta2)>1.5) GOLDEN_ELECTRONS_IN_ENDCAP++;
     
-
-
-
   // ----------------------------------  EXCLUDE ELECTRONS HAVING HOTTEST XTAL WHICH IS A BORDER XTAL
   // chiara: questo paolo lo aveva commentato, begin
+  /*
   DetId firstElehottestDetId  = getHottestDetId( zeeCandidates[myBestZ].first->getParentSuperCluster()->seed()->hitsAndFractions(), hits, ehits ).first;   
   DetId secondElehottestDetId = getHottestDetId( zeeCandidates[myBestZ].second->getParentSuperCluster()->seed()->hitsAndFractions(), hits, ehits ).first;
   
@@ -1259,9 +1041,7 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
     EBZN++;
     if(class1==0 && class2==0) EBZN_gg++;
   }
-
-
-
+  */
   ///////////////////////////ELECTRON SELECTION///////////////////////////////
   if(myBestZ == -1) return kContinue;
 
@@ -1277,241 +1057,9 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
   // https://github.com/lgray/cmssw/blob/common_isolation_selection_70X/TestElectronID/ElectronIDAnalyzer/plugins/ElectronIDAnalyzer.cc
   bool selectionBool = false;  
 
-  Handle<reco::VertexCollection> vertices;
-  iEvent.getByLabel(vertices_, vertices);
-  if (vertices->empty()) return kContinue; 
-  const reco::Vertex &pv = vertices->front();
-
-  edm::Handle<reco::ConversionCollection> convs;
-  edm::Handle<reco::BeamSpot> thebs;
-  iEvent.getByLabel(conversions_, convs);
-  iEvent.getByLabel(beamspot_, thebs);
-  if( !thebs.isValid() || !convs.isValid() ) cout << "conversions not found" << endl;
-
-
-  // table with cuts : chiara, hardcoded!!!
-  // for the moment we use "CSA14 selection, conditions: 50ns, poor detector alignment"
-  // from
-  // https://twiki.cern.ch/twiki/bin/viewauth/CMS/CutBasedElectronIdentificationRun2  
-  float ptCut  = 20;
-  float etaCut = 2.5;
-  //
-  float HoeCutEB = 0.10;
-  float dPhiCutEB = 0.051;
-  float dEtaCutEB = 0.015;
-  float sIeIeCutEB = 0.01;
-  float epCutEB = 0.053;
-  float HoeCutEE = 0.099;
-  float dPhiCutEE = 0.056;
-  float dEtaCutEE = 0.023;
-  float sIeIeCutEE = 0.03;
-  float epCutEE = 0.11;
-  //
-  float isoCutEB = 0.14;
-  float isoCutEE = 0.15;
-  //
-  float d0CutEB = 0.012;
-  float dzCutEB = 0.030;
-  float d0CutEE = 0.068;
-  float dzCutEE = 0.78;
-  // 
-  float hitsCut=1;
-
-  // kinematics
-  bool pt_1  = ( (zeeCandidates[myBestZ].first->getRecoElectron()->pt() ) > ptCut);
-  bool pt_2  = ( (zeeCandidates[myBestZ].second->getRecoElectron()->pt() ) > ptCut);
-  bool eta_1 = ( fabs(eta1)<etaCut ); 
-  bool eta_2 = ( fabs(eta2)<etaCut ); 
-  
-  // id and matching
-  float HoE_1 = zeeCandidates[myBestZ].first->getRecoElectron()->hcalOverEcal();
-  float HoE_2 = zeeCandidates[myBestZ].second->getRecoElectron()->hcalOverEcal();
-  float DeltaPhiIn_1 = zeeCandidates[myBestZ].first->getRecoElectron()->deltaPhiSuperClusterTrackAtVtx();
-  float DeltaPhiIn_2 = zeeCandidates[myBestZ].second->getRecoElectron()->deltaPhiSuperClusterTrackAtVtx();
-  float DeltaEtaIn_1 = zeeCandidates[myBestZ].first->getRecoElectron()->deltaEtaSuperClusterTrackAtVtx();
-  float DeltaEtaIn_2 = zeeCandidates[myBestZ].second->getRecoElectron()->deltaEtaSuperClusterTrackAtVtx();
-  // float Full5x5_Sieie_1 = (*full5x5sieie)[*zeeCandidates[myBestZ].first->getRecoElectron()];
-  // float Full5x5_Sieie_2 = (*full5x5sieie)[*zeeCandidates[myBestZ].second->getRecoElectron()];
-  float Full5x5_Sieie_1 = zeeCandidates[myBestZ].first->getRecoElectron()->sigmaIetaIeta();    // chiara: per il momento uso questo perche' non riesco
-  float Full5x5_Sieie_2 = zeeCandidates[myBestZ].second->getRecoElectron()->sigmaIetaIeta();   // a prendere la full5x5
-
-  float ecalEne_1 = zeeCandidates[myBestZ].first->getRecoElectron()->ecalEnergy();
-  float ecalEne_2 = zeeCandidates[myBestZ].second->getRecoElectron()->ecalEnergy();
-  float OneOverEoP_1, OneOverEoP_2;
-  if (ecalEne_1==0) {
-    cout << "first electron energy is zero!! " << endl;
-    OneOverEoP_1 = 1000000.;
-  } else {
-    OneOverEoP_1 = 1.0/ecalEne_1 - (zeeCandidates[myBestZ].first->getRecoElectron()->eSuperClusterOverP())/ecalEne_1;
-  }
-  if (ecalEne_2==0) {
-    cout << "second electron energy is zero!! " << endl;
-    OneOverEoP_2 = 1000000.;
-  } else {
-    OneOverEoP_2 = 1.0/ecalEne_2 - (zeeCandidates[myBestZ].second->getRecoElectron()->eSuperClusterOverP())/ecalEne_2;
-  }
-
-  bool okHoE_1, okHoE_2, okDPhi_1, okDPhi_2, okDEta_1, okDEta_2, okEP_1, okEP_2;
-  bool okSieie_1, okSieie_2;
-  if (fabs(eta1)<1.5) {
-    okHoE_1   = HoE_1 < HoeCutEB;   
-    okDPhi_1  = fabs(DeltaPhiIn_1) < dPhiCutEB;
-    okDEta_1  = fabs(DeltaEtaIn_1) < dEtaCutEB;
-    okSieie_1 = Full5x5_Sieie_1< sIeIeCutEB;
-    okEP_1    = fabs(OneOverEoP_1) < epCutEB;
-  } else {
-    okHoE_1   = HoE_1 < HoeCutEE;   
-    okDPhi_1  = fabs(DeltaPhiIn_1) < dPhiCutEE;
-    okDEta_1  = fabs(DeltaEtaIn_1) < dEtaCutEE;
-    okSieie_1 = Full5x5_Sieie_1< sIeIeCutEE;
-    okEP_1    = fabs(OneOverEoP_1) < epCutEE;
-  } 
-  if (fabs(eta2)<1.5) {
-    okHoE_2   = HoE_2 < HoeCutEB;   
-    okDPhi_2  = fabs(DeltaPhiIn_2) < dPhiCutEB;
-    okDEta_2  = fabs(DeltaEtaIn_2) < dEtaCutEB;
-    okSieie_2 = Full5x5_Sieie_2< sIeIeCutEB;
-    okEP_2    = fabs(OneOverEoP_2) < epCutEB;
-  } else {
-    okHoE_2   = HoE_2 < HoeCutEE;   
-    okDPhi_2  = fabs(DeltaPhiIn_2) < dPhiCutEE;
-    okDEta_2  = fabs(DeltaEtaIn_2) < dEtaCutEE;
-    okSieie_2 = Full5x5_Sieie_2< sIeIeCutEE;
-    okEP_2    = fabs(OneOverEoP_2) < epCutEE;
-  } 
-
-  // isolation - with deltaB correction
-  reco::GsfElectron::PflowIsolationVariables pfIso_1 = zeeCandidates[myBestZ].first->getRecoElectron()->pfIsolationVariables();
-  reco::GsfElectron::PflowIsolationVariables pfIso_2 = zeeCandidates[myBestZ].second->getRecoElectron()->pfIsolationVariables();
-  float absIsoWdBeta_1 = pfIso_1.sumChargedHadronPt + std::max(0.0, pfIso_1.sumNeutralHadronEt + pfIso_1.sumPhotonEt - 0.5 * pfIso_1.sumPUPt);
-  float absIsoWdBeta_2 = pfIso_2.sumChargedHadronPt + std::max(0.0, pfIso_2.sumNeutralHadronEt + pfIso_2.sumPhotonEt - 0.5 * pfIso_2.sumPUPt);
-  float thePt_1 = zeeCandidates[myBestZ].first->getRecoElectron()->pt();
-  float thePt_2 = zeeCandidates[myBestZ].second->getRecoElectron()->pt();
-  float relIso_1 = absIsoWdBeta_1/thePt_1;
-  float relIso_2 = absIsoWdBeta_2/thePt_2;
-
-  bool okIso_1, okIso_2;
-  if (fabs(eta1)<1.5) {
-    okIso_1 = relIso_1 < isoCutEB;
-  } else {
-    okIso_1 = relIso_1 < isoCutEE;
-  }
-  if (fabs(eta2)<1.5) {
-    okIso_2 = relIso_2 < isoCutEB;
-  } else {
-    okIso_2 = relIso_2 < isoCutEE;
-  }
-
-  // Impact parameter
-  float d0_1 = (-1) * zeeCandidates[myBestZ].first->getRecoElectron()->gsfTrack()->dxy(pv.position() );
-  float d0_2 = (-1) * zeeCandidates[myBestZ].second->getRecoElectron()->gsfTrack()->dxy(pv.position() );
-  float dz_1 = zeeCandidates[myBestZ].first->getRecoElectron()->gsfTrack()->dz( pv.position() );
-  float dz_2 = zeeCandidates[myBestZ].second->getRecoElectron()->gsfTrack()->dz( pv.position() );
-  bool okD0_1, okD0_2, okDz_1, okDz_2;
-
-  if (fabs(eta1)<1.5) {  
-    okD0_1 = fabs(d0_1)<d0CutEB;
-    okDz_1 = fabs(dz_1)<dzCutEB;
-  } else {
-    okD0_1 = fabs(d0_1)<d0CutEE;
-    okDz_1 = fabs(dz_1)<dzCutEE;
-  }
-  if (fabs(eta2)<1.5) {  
-    okD0_2 = fabs(d0_2)<d0CutEB;
-    okDz_2 = fabs(dz_2)<dzCutEB;
-  } else {
-    okD0_2 = fabs(d0_2)<d0CutEE;
-    okDz_2 = fabs(dz_2)<dzCutEE;
-  }
-
-  // Conversions
-  // chiara: da controllare. Il codice di Ilya fa questo commentato qui sotto, ma non funziona. 
-  // int mHits_1 = zeeCandidates[myBestZ].first->getRecoElectron()->gsfTrack()->trackerExpectedHitsInner().numberOfLostHits();
-  // int mHits_2 = zeeCandidates[myBestZ].second->getRecoElectron()->gsfTrack()->trackerExpectedHitsInner().numberOfLostHits();
-  const reco::HitPattern &hitPattern1 = zeeCandidates[myBestZ].first->getRecoElectron()->gsfTrack()->hitPattern();
-  const reco::HitPattern &hitPattern2 = zeeCandidates[myBestZ].second->getRecoElectron()->gsfTrack()->hitPattern();
-  int mHits_1= hitPattern1.numberOfHits(HitPattern::MISSING_INNER_HITS);
-  int mHits_2= hitPattern2.numberOfHits(HitPattern::MISSING_INNER_HITS);
-
-  bool passConversionVeto_1 = !ConversionTools::hasMatchedConversion(*zeeCandidates[myBestZ].first->getRecoElectron(),convs,thebs->position());
-  bool passConversionVeto_2 = !ConversionTools::hasMatchedConversion(*zeeCandidates[myBestZ].second->getRecoElectron(),convs,thebs->position());
-  bool okConv_1 = mHits_1<=hitsCut && passConversionVeto_1;
-  bool okConv_2 = mHits_2<=hitsCut && passConversionVeto_2;
-
-  h1_eventsBeforeEWKSelection_->Fill(1);
-
-  // control plots
-  h1_deltaEta -> Fill(DeltaEtaIn_1);
-  h1_deltaEta -> Fill(DeltaEtaIn_2);
-  h1_deltaPhi -> Fill(DeltaPhiIn_1);
-  h1_deltaPhi -> Fill(DeltaPhiIn_2);
-  h1_sIeIe    -> Fill(Full5x5_Sieie_1);
-  h1_sIeIe    -> Fill(Full5x5_Sieie_2);
-  h1_hoe      -> Fill(HoE_1);
-  h1_hoe      -> Fill(HoE_2);
-  h1_eop      -> Fill(OneOverEoP_1);
-  h1_eop      -> Fill(OneOverEoP_2);
-  h1_do       -> Fill(d0_1);
-  h1_do       -> Fill(d0_2);
-  h1_dz       -> Fill(dz_1);
-  h1_dz       -> Fill(dz_2);
-  h1_pfIso    -> Fill(absIsoWdBeta_1/pt_1); 
-  h1_pfIso    -> Fill(absIsoWdBeta_2/pt_2); 
-  h1_mhits    -> Fill(mHits_1);
-  h1_mhits    -> Fill(mHits_2);
-
-#ifdef DEBUG_EWK
-  std::cout << "---------------------------------------------" << std::endl;
-  std::cout << "EWK selection ==> " << std::endl;
-  std::cout << pt_1 << " " << pt_2 << " " << eta_1 << " " << eta_2 << " " 
-	    << okHoE_1 << " " << okHoE_2 << " " 
-	    << okDPhi_1 << " " << okDPhi_2 << " "
-	    << okDEta_1 << " " << okDEta_2 << " "
-	    << okSieie_1 << " " << okSieie_2 << " "
-	    << okEP_1 << " " << okEP_2 << " "
-	    << okIso_1 << " " << okIso_2 << " "
-	    << okD0_1 << " " << okD0_2 << " " << okDz_1 << " " << okDz_2 << " "
-	    << okConv_1 << " " << okConv_2 << endl;
-  std::cout << "---------------------------------------------" << std::endl;
-#endif
-
-  if(! (invMassBool &&
-	pt_1 && pt_2 && eta_1 && eta_2 && 
-	okHoE_1 && okHoE_2 && okDPhi_1 && okDPhi_2 && okDEta_1 && okDEta_2 && 
-	okSieie_1 && okSieie_2 && 
-	okEP_1 && okEP_2 &&
-	okIso_1 && okIso_2 &&
-	okD0_1 && okD0_2 && okDz_1 && okDz_2 &&
-	okConv_1 && okConv_2
-	) )
-    return kContinue;
-
-#ifdef DEBUG_EWK
-  cout << "EWK selection ok" << endl;
-#endif
-
   h1_Selection_->Fill(8.);
   h1_eventsAfterEWKSelection_->Fill(1);
-
-  h1_afterEWK_deltaEta -> Fill(DeltaEtaIn_1);
-  h1_afterEWK_deltaEta -> Fill(DeltaEtaIn_2);
-  h1_afterEWK_deltaPhi -> Fill(DeltaPhiIn_1);
-  h1_afterEWK_deltaPhi -> Fill(DeltaPhiIn_2);
-  h1_afterEWK_sIeIe    -> Fill(Full5x5_Sieie_1);
-  h1_afterEWK_sIeIe    -> Fill(Full5x5_Sieie_2);
-  h1_afterEWK_hoe      -> Fill(HoE_1);
-  h1_afterEWK_hoe      -> Fill(HoE_2);
-  h1_afterEWK_eop      -> Fill(OneOverEoP_1);
-  h1_afterEWK_eop      -> Fill(OneOverEoP_2);
-  h1_afterEWK_do       -> Fill(d0_1);
-  h1_afterEWK_do       -> Fill(d0_2);
-  h1_afterEWK_dz       -> Fill(dz_1);
-  h1_afterEWK_dz       -> Fill(dz_2);
-  h1_afterEWK_pfIso    -> Fill(absIsoWdBeta_1/pt_1); 
-  h1_afterEWK_pfIso    -> Fill(absIsoWdBeta_2/pt_2); 
-  h1_afterEWK_mhits    -> Fill(mHits_1);
-  h1_afterEWK_mhits    -> Fill(mHits_2);
-
+  
   // ----------------------------------------------------------------------
   // extra selections (on top of ID + mass window) based on EB/EE and class
   // not to apply them => electronSelection_ = -1
@@ -1556,17 +1104,7 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
   //  ele1EnergyCorrection=getEtaCorrection(zeeCandidates[myBestZ].first->getRecoElectron());
   //  ele2EnergyCorrection=getEtaCorrection(zeeCandidates[myBestZ].second->getRecoElectron());
   //}
-  
   if (invMassBool && selectionBool) { 
-
-    // reco-genLevel comparisons
-    if (!mcProducer_.empty()) {
-      h1_zMassResol_ ->Fill(mass-myGenZMass);
-      std::vector<const reco::GsfElectron*> dauElectronCollection;
-      dauElectronCollection.push_back( zeeCandidates[myBestZ].first->getRecoElectron() );
-      dauElectronCollection.push_back( zeeCandidates[myBestZ].second->getRecoElectron() );
-      fillEleInfo( mcEle,zeeCandidates[myBestZ].first->getRecoElectron(),zeeCandidates[myBestZ].second->getRecoElectron() );
-    }
 
     // SC energies without f(eta) corrections
     // h1_electronCosTheta_SC_    -> Fill( ZeeKinematicTools::cosThetaElectrons_SC(zeeCandidates[myBestZ])  );
@@ -1576,7 +1114,6 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
 
     // PUT f(eta) IN OUR Zee ALGORITHM 
     theAlgorithm_->addEvent(zeeCandidates[myBestZ].first, zeeCandidates[myBestZ].second,MZ*sqrt(ele1EnergyCorrection*ele2EnergyCorrection) );
-     
     // SC energies after f(eta) corrections - fuffa, perche' ora le correzioni sono vuote
     h1_reco_ZMassCorr_->Fill(ZeeKinematicTools::calculateZMassWithCorrectedElectrons_withTK(zeeCandidates[myBestZ],ele1EnergyCorrection,ele2EnergyCorrection));
     if (fabs(eta1)<1.5 && fabs(eta2)<1.5 )       
@@ -1585,7 +1122,7 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
       h1_reco_ZMassCorrEE_->Fill(ZeeKinematicTools::calculateZMassWithCorrectedElectrons_withTK(zeeCandidates[myBestZ],ele1EnergyCorrection,ele2EnergyCorrection));
 
     mass4tree = ZeeKinematicTools::calculateZMassWithCorrectedElectrons_withTK(zeeCandidates[myBestZ],ele1EnergyCorrection,ele2EnergyCorrection);
-    massDiff4tree = ZeeKinematicTools::calculateZMassWithCorrectedElectrons_withTK(zeeCandidates[myBestZ],ele1EnergyCorrection,ele2EnergyCorrection) - myGenZMass;
+    //    massDiff4tree = ZeeKinematicTools::calculateZMassWithCorrectedElectrons_withTK(zeeCandidates[myBestZ],ele1EnergyCorrection,ele2EnergyCorrection) - myGenZMass;
     myTree->Fill();
   }
 
@@ -2034,66 +1571,6 @@ double ZeeCalibration::fEtaBarrelGood(double scEta) const{
 }
 */
 
-float ZeeCalibration::EvalDR(float Eta,float Eta_ref,float Phi,float Phi_ref) {
-  
-  if (Phi<0) Phi = 2*TMath::Pi() + Phi;
-  if (Phi_ref<0) Phi_ref = 2*TMath::Pi() + Phi_ref;
-  float DPhi = Phi - Phi_ref ;
-  if (fabs(DPhi)>TMath::Pi()) DPhi = 2*TMath::Pi() - fabs(DPhi);                                                                                                                             
-  float DEta = Eta - Eta_ref ;
-                                                                                                                             
-  float DR = sqrt( DEta*DEta + DPhi*DPhi );
-  return DR;
-}
-
-float ZeeCalibration::EvalDPhi(float Phi,float Phi_ref) {
-
-  if (Phi<0) Phi = 2*TMath::Pi() + Phi;
-  if (Phi_ref<0) Phi_ref = 2*TMath::Pi() + Phi_ref;
-  return (Phi - Phi_ref);
-}
-
-void ZeeCalibration::fillEleInfo( std::vector<TLorentzVector> mcEle, const reco::GsfElectron* eleReco1, const reco::GsfElectron* eleReco2) {
-
-  for (unsigned int i=0;i<mcEle.size();i++) {
-
-    h_eleEffEta_[0]->Fill(fabs(mcEle[i].Eta()));
-    h_eleEffPhi_[0]->Fill(mcEle[i].Phi());
-    h_eleEffPt_[0]->Fill(mcEle[i].Perp());
-
-    const reco::GsfElectron* myMatchEle=0;
-    
-    bool matched = false;
-    float minDR=0.1;
-    float dr1=EvalDR(mcEle[i].Eta(),eleReco1->eta(),mcEle[i].Phi(),eleReco1->phi());
-    float dr2=EvalDR(mcEle[i].Eta(),eleReco2->eta(),mcEle[i].Phi(),eleReco2->phi());
-    if (dr1<dr2 && dr1<minDR) {
-      myMatchEle = eleReco1;
-      minDR = dr1;
-      matched = true;
-    }
-    if (dr2<dr1 && dr2<minDR) {
-      myMatchEle = eleReco2;
-      minDR = dr2;
-      matched = true;
-    }
-
-    if (matched) {
-      h_eleEffEta_[1]->Fill(fabs(mcEle[i].Eta()));
-      h_eleEffPhi_[1]->Fill(mcEle[i].Phi());
-      h_eleEffPt_[1]->Fill(mcEle[i].Pt());
-
-      h1_eleEtaResol_->Fill( myMatchEle->eta() - mcEle[i].Eta() );
-      h1_elePhiResol_->Fill( myMatchEle->phi() - mcEle[i].Phi() );
-      const reco::SuperCluster* mySC=&(*(myMatchEle->parentSuperCluster()));
-      h_ESCEtrue_[loopFlag_]->Fill(mySC->energy()/mcEle[i].Energy());
-      h_ESCEtrueVsEta_[loopFlag_]->Fill(fabs(mySC->position().eta()),mySC->energy()/mcEle[i].Energy());
-      
-      h1_seedOverSC_->Fill( mySC->seed()->energy() / mySC->energy() );
-      h1_preshowerOverSC_->Fill( mySC->preshowerEnergy() / mySC->energy() );
-    }
-  }
-}
 
 int ZeeCalibration::ringNumberCorrector(int k) {
 

@@ -273,7 +273,6 @@ bool ZIterativeAlgorithmWithFit::addEvent(calib::CalibElectron* ele1, calib::Cal
      (ele2->getRecoElectron()->parentSuperCluster()->position().phi() > -10.) && (ele2->getRecoElectron()->parentSuperCluster()->position().phi() < 10.)) {
     getWeight(currentEvent_, Electrons, invMassRescFactor);
   }
-  
   currentEvent_++;
   return kTRUE;
 }
