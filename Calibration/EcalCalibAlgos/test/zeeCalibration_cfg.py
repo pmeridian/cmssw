@@ -24,7 +24,7 @@ process.load('Configuration.StandardSequences.EndOfProcess_cff')
 process.MessageLogger.cerr.FwkReport.reportEvery = 1000
 
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(-1)
+    input = cms.untracked.int32(30000)
 )
 
 # chiara
@@ -86,7 +86,7 @@ process.particleFlowSuperClusterECAL.PFSuperClusterCollectionEndcapWithPreshower
 
 ## chiara: algo di calibrazione vero e proprio
 process.load("Calibration.EcalCalibAlgos.zeeCalibration_cff")
-process.looper.maxLoops = cms.untracked.uint32(1)              # chiara: era 7
+process.looper.maxLoops = cms.untracked.uint32(8)              # chiara: era 7
 process.looper.electronSelection = cms.untracked.int32(-1)     # 0-1-2-3-4; -1 to do nothing
 process.looper.histoFile = cms.string('myHistograms_test.root')
 process.looper.zeeFile = cms.string('myZeePlots_test.root')
