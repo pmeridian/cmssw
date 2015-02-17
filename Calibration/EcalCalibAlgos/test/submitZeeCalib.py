@@ -16,7 +16,8 @@ os.system("mkdir -p "+opt.task)
 pwd = os.environ['PWD']
 user = os.environ['USER']
 
-command = "cmsRun "+pwd+"/"+opt.cfg
+command = "cmsRun "+pwd+"/"+opt.task+"/"+opt.cfg
+os.system("cp "+opt.cfg+" "+pwd+"/"+opt.task)
 print "submit "+command
 logfile = pwd+"/"+opt.task+"/zeeCalib.log"
 print logfile
@@ -27,23 +28,32 @@ outputfile = open(outputname,'w')
 
 outputfile.write('#!/bin/bash\n')
 outputfile.write('export SCRAM_ARCH=slc6_amd64_gcc481\n')
-outputfile.write('source /cvmfs/cms.cern.ch/cmsset_default.sh\n')
+outputfile.write('export VO_CMS_SW_DIR=/cvmfs/cms.cern.ch\n')
 outputfile.write('cd '+pwd+'\n')
+outputfile.write('source /cvmfs/cms.cern.ch/cmsset_default.sh\n')
 outputfile.write('eval `scramv1 runtime -sh`\n')
 outputfile.write('if [ "${WORKDIR}" == "" ]; then\n')
 outputfile.write('WORKDIR=/tmp/'+user+'/'+opt.task+'\n')
 outputfile.write('mkdir -p ${WORKDIR}\n')
 outputfile.write('fi\n')
+outputfile.write('echo "Working in ${WORKDIR}"\n')
 outputfile.write('cd ${WORKDIR}\n')
+outputfile.write('echo "============= ENV DUMP ================"\n')
+outputfile.write('env\n')
+outputfile.write('echo "============= START CMSRUN ================"\n')
 outputfile.write(command+"\n")
+outputfile.write('echo "============= END CMSRUN ================"\n')
+outputfile.write('ls -ltrh\n')
 outputfile.write('cp zeeRescale*.root my*root *xml Zee*txt '+pwd+'/'+opt.task+'/\n') 
+outputfile.close()
 
 print outputname+" created. Launch job. Run "+opt.run 
 
 #time.sleep(1)
 
 if ( (int(opt.run) == 1) and (opt.queue == "local")):
-    commandLocal="chmod +x "+outputname+"; "+outputname
+#    commandLocal="chmod +x "+outputname+"; "+outputname
+    commandLocal=outputname
     print "Launching local "+commandLocal
     os.system(commandLocal)
 elif ( (int(opt.run) == 1) ):
