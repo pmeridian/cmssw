@@ -162,6 +162,7 @@ class ZeeCalibration : public edm::ESProducerLooper {
   double maxInvMassCut_;
   double mass; 
 
+  int   isEBEB;
   float mass4tree;
   float massDiff4tree;
 
@@ -213,8 +214,10 @@ class ZeeCalibration : public edm::ESProducerLooper {
   // TH1F* h1_zEtaResol_;
   // TH1F* h1_zPhiResol_;
   TH1F* h1_reco_ZMass_;
+  TH2F* h2_reco_ZMassVsIter_;
 
   TH1F* h1_reco_ZMassCorr_;
+
   TH1F* h1_reco_ZMassCorrBB_;
   TH1F* h1_reco_ZMassCorrEE_;
   TH1F* h1_reco_ZMassGood_;

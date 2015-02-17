@@ -150,6 +150,8 @@ ZeeCalibration::ZeeCalibration(const edm::ParameterSet& iConfig) {
 #endif
 
   myTree = new TTree("myTree","myTree");
+  myTree->Branch("iteration",&loopFlag_,"iteration/I");
+  myTree->Branch("isEBEB",&isEBEB,"isEBEB/I");
   myTree->Branch("zMass",&mass4tree,"mass/F");
   myTree->Branch("zMassDiff",&massDiff4tree,"massDiff/F");
   
@@ -685,6 +687,7 @@ void ZeeCalibration::endOfJob() {
   
   h1_ZCandMult_->Write();
   h1_reco_ZMass_->Write();
+  h2_reco_ZMassVsIter_->Write();
   
   h1_reco_ZMassCorr_->Write();
   h1_reco_ZMassCorrBB_->Write();
@@ -1110,18 +1113,26 @@ ZeeCalibration::duringLoop( const edm::Event& iEvent, const edm::EventSetup& iSe
     // h1_electronCosTheta_SC_    -> Fill( ZeeKinematicTools::cosThetaElectrons_SC(zeeCandidates[myBestZ])  );
     // h1_electronCosTheta_TK_    -> Fill( ZeeKinematicTools::cosThetaElectrons_TK(zeeCandidates[myBestZ])  );
     // h1_electronCosTheta_SC_TK_ -> Fill( ZeeKinematicTools::cosThetaElectrons_SC(zeeCandidates[myBestZ])/ZeeKinematicTools::cosThetaElectrons_TK(zeeCandidates[myBestZ]) - 1. );
-    h1_reco_ZMass_->Fill(ZeeKinematicTools::calculateZMass_withTK(zeeCandidates[myBestZ]));
+
+    mass4tree = ZeeKinematicTools::calculateZMassWithCorrectedElectrons_withTK(zeeCandidates[myBestZ],ele1EnergyCorrection,ele2EnergyCorrection);
+    
+    h1_reco_ZMass_->Fill(mass4tree);
+    h2_reco_ZMassVsIter_->Fill(loopFlag_,mass4tree);
 
     // PUT f(eta) IN OUR Zee ALGORITHM 
     theAlgorithm_->addEvent(zeeCandidates[myBestZ].first, zeeCandidates[myBestZ].second,MZ*sqrt(ele1EnergyCorrection*ele2EnergyCorrection) );
     // SC energies after f(eta) corrections - fuffa, perche' ora le correzioni sono vuote
-    h1_reco_ZMassCorr_->Fill(ZeeKinematicTools::calculateZMassWithCorrectedElectrons_withTK(zeeCandidates[myBestZ],ele1EnergyCorrection,ele2EnergyCorrection));
-    if (fabs(eta1)<1.5 && fabs(eta2)<1.5 )       
-      h1_reco_ZMassCorrBB_->Fill(ZeeKinematicTools::calculateZMassWithCorrectedElectrons_withTK(zeeCandidates[myBestZ],ele1EnergyCorrection,ele2EnergyCorrection));
+    h1_reco_ZMassCorr_->Fill(mass4tree);
+    isEBEB=0;
+    if (fabs(eta1)<1.5 && fabs(eta2)<1.5 )  
+      {     
+	h1_reco_ZMassCorrBB_->Fill(mass4tree);
+	isEBEB=1;
+      }
     if (fabs(eta1)>1.5 && fabs(eta2)>1.5 )       
-      h1_reco_ZMassCorrEE_->Fill(ZeeKinematicTools::calculateZMassWithCorrectedElectrons_withTK(zeeCandidates[myBestZ],ele1EnergyCorrection,ele2EnergyCorrection));
+      h1_reco_ZMassCorrEE_->Fill(mass4tree);
 
-    mass4tree = ZeeKinematicTools::calculateZMassWithCorrectedElectrons_withTK(zeeCandidates[myBestZ],ele1EnergyCorrection,ele2EnergyCorrection);
+
     //    massDiff4tree = ZeeKinematicTools::calculateZMassWithCorrectedElectrons_withTK(zeeCandidates[myBestZ],ele1EnergyCorrection,ele2EnergyCorrection) - myGenZMass;
     myTree->Fill();
   }
@@ -1443,6 +1454,11 @@ void ZeeCalibration::bookHistograms() {
   h1_reco_ZMass_->SetXTitle("reco_ZMass (GeV)");
   h1_reco_ZMass_->SetYTitle("events");
 
+  h2_reco_ZMassVsIter_ = new TH2F("reco_ZMassVsIter","Inv. mass of 2 reco Electrons",20,-0.5,19.5,200,0.,150.);
+  h2_reco_ZMassVsIter_->SetXTitle("#iteration");
+  h2_reco_ZMassVsIter_->SetYTitle("reco_ZMass (GeV)");
+  h2_reco_ZMassVsIter_->SetZTitle("events");
+
   h1_reco_ZMassCorr_ = new TH1F("reco_ZMassCorr","Inv. mass of 2 corrected reco Electrons",200,0.,150.);
   h1_reco_ZMassCorr_->SetXTitle("reco_ZMass (GeV)");
   h1_reco_ZMassCorr_->SetYTitle("events");
@@ -1761,6 +1777,7 @@ void ZeeCalibration::resetHistograms(){
   
   h1_ZCandMult_-> Reset();
   h1_reco_ZMass_-> Reset();
+
   h1_reco_ZMassCorr_-> Reset();
   h1_reco_ZMassCorrBB_-> Reset();
   h1_reco_ZMassCorrEE_-> Reset();

@@ -259,18 +259,18 @@ bool ZIterativeAlgorithmWithFit::addEvent(calib::CalibElectron* ele1, calib::Cal
 #endif
 
   if (massMethod == "SCTRMass" ) {
-    massReco_.push_back(invMassCalc(ele1->getRecoElectron()->parentSuperCluster()->energy(), ele1->getRecoElectron()->eta(), ele1->getRecoElectron()->phi(), ele2->getRecoElectron()->parentSuperCluster()->energy(), ele2->getRecoElectron()->eta(), ele2->getRecoElectron()->phi()));
+    massReco_.push_back(invMassCalc(ele1->getParentSuperCluster()->energy(), ele1->getRecoElectron()->eta(), ele1->getRecoElectron()->phi(), ele2->getParentSuperCluster()->energy(), ele2->getRecoElectron()->eta(), ele2->getRecoElectron()->phi()));
   }
   else if (massMethod == "SCMass" ) {
-    massReco_.push_back(invMassCalc(ele1->getRecoElectron()->parentSuperCluster()->energy(), ele1->getRecoElectron()->parentSuperCluster()->position().eta(), ele1->getRecoElectron()->parentSuperCluster()->position().phi(), ele2->getRecoElectron()->parentSuperCluster()->energy(), ele2->getRecoElectron()->parentSuperCluster()->position().eta(), ele2->getRecoElectron()->parentSuperCluster()->position().phi()));
+    massReco_.push_back(invMassCalc(ele1->getParentSuperCluster()->energy(), ele1->getParentSuperCluster()->position().eta(), ele1->getParentSuperCluster()->position().phi(), ele2->getParentSuperCluster()->energy(), ele2->getParentSuperCluster()->position().eta(), ele2->getParentSuperCluster()->position().phi()));
   }  
   
 #ifdef DEBUG
   std::cout << "Mass calculated " << massReco_[currentEvent_] << std::endl;
 #endif
   
-  if((ele2->getRecoElectron()->parentSuperCluster()->position().eta() > -10.) && (ele2->getRecoElectron()->parentSuperCluster()->position().eta() < 10.) && 
-     (ele2->getRecoElectron()->parentSuperCluster()->position().phi() > -10.) && (ele2->getRecoElectron()->parentSuperCluster()->position().phi() < 10.)) {
+  if((ele2->getParentSuperCluster()->position().eta() > -10.) && (ele2->getParentSuperCluster()->position().eta() < 10.) && 
+     (ele2->getParentSuperCluster()->position().phi() > -10.) && (ele2->getParentSuperCluster()->position().phi() < 10.)) {
     getWeight(currentEvent_, Electrons, invMassRescFactor);
   }
   currentEvent_++;
@@ -323,7 +323,7 @@ void ZIterativeAlgorithmWithFit::getWeight(unsigned int event_id, calib::CalibEl
 	    
 	    // SC rawEne / sum of raw energies of the SC hits in imod
 	    // fraction of raw energy of the electron in the module
-	    float weight2 = modules[imod].second / ele->getRecoElectron()->parentSuperCluster()->rawEnergy();
+	    float weight2 = modules[imod].second / ele->getParentSuperCluster()->rawEnergy();
 #ifdef DEBUG
 	    std::cout << "w2 " << weight2 << std::endl;
 #endif
