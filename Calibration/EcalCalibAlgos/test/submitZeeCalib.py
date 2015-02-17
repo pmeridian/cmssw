@@ -49,14 +49,13 @@ outputfile.close()
 
 print outputname+" created. Launch job. Run "+opt.run 
 
-#time.sleep(1)
-
 if ( (int(opt.run) == 1) and (opt.queue == "local")):
-#    commandLocal="chmod +x "+outputname+"; "+outputname
-    commandLocal=outputname
+    commandLocal="chmod +x "+outputname+"; "+outputname
     print "Launching local "+commandLocal
     os.system(commandLocal)
 elif ( (int(opt.run) == 1) ):
-    os.system("bsub -q "+opt.queue+" -o "+logfile+" source "+outputname)
+    commandBatch="bsub -q "+opt.queue+" -o "+logfile+" source "+outputname
+    print "Launching "+commandBatch
+    os.system(commandBatch)
 
 
