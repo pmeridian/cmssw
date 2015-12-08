@@ -31,7 +31,7 @@ class SCEnergyCorrectorSemiParm {
     SCEnergyCorrectorSemiParm();
     ~SCEnergyCorrectorSemiParm(); 
         
-    void setTokens(edm::ConsumesCollector &cc);
+    void setTokens(const edm::ParameterSet& conf, edm::ConsumesCollector &cc);
     
     void modifyObject(reco::SuperCluster &sc);
     

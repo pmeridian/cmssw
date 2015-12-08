@@ -16,6 +16,7 @@
 #include "RooAbsPdf.h"
 #include "RooConstVar.h"
 #include "TStreamerInfo.h"
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/FileInPath.h"
 #include "FWCore/Utilities/interface/isFinite.h"
 #include <vdt/vdtMath.h>
@@ -58,12 +59,13 @@ SCEnergyCorrectorSemiParm::~SCEnergyCorrectorSemiParm()
 }
 
 //--------------------------------------------------------------------------------------------------
-void SCEnergyCorrectorSemiParm::setTokens(edm::ConsumesCollector &cc) {
-  
-  tokenEBRecHits_      = cc.consumes<EcalRecHitCollection>(edm::InputTag("ecalRecHit","EcalRecHitsEB"));
-  tokenEERecHits_      = cc.consumes<EcalRecHitCollection>(edm::InputTag("ecalRecHit","EcalRecHitsEE"));
-  tokenVertices_       = cc.consumes<reco::VertexCollection>(edm::InputTag("offlinePrimaryVertices"));   
-  
+void SCEnergyCorrectorSemiParm::setTokens(const edm::ParameterSet& conf, edm::ConsumesCollector &cc) {
+  const edm::InputTag rceb = conf.getParameter<edm::InputTag>("ecalRecHitsEB");
+  const edm::InputTag rcee = conf.getParameter<edm::InputTag>("ecalRecHitsEE");
+  const edm::InputTag vtx =  conf.getParameter<edm::InputTag>("vertexCollection");
+  tokenEBRecHits_      = cc.consumes<EcalRecHitCollection>(rceb);
+  tokenEERecHits_      = cc.consumes<EcalRecHitCollection>(rcee);
+  tokenVertices_       = cc.consumes<reco::VertexCollection>(vtx);  
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -86,11 +88,9 @@ void SCEnergyCorrectorSemiParm::setEventSetup(const edm::EventSetup &es) {
 
 //--------------------------------------------------------------------------------------------------
 void SCEnergyCorrectorSemiParm::setEvent(const edm::Event &e) {
-  
   e.getByToken(tokenEBRecHits_,rechitsEB_);
   e.getByToken(tokenEERecHits_,rechitsEE_);
   e.getByToken(tokenVertices_,vertices_);
-  
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -150,7 +150,6 @@ void SCEnergyCorrectorSemiParm::modifyObject(reco::SuperCluster &sc) {
   auto clusend = sc.clustersEnd();
   for( auto clus = sc.clustersBegin(); clus != clusend; ++clus ) {
     pclus = *clus;
-    
     if(theseed == pclus ) 
       continue;
     clusterRawEnergy[iclus]  = pclus->energy();
@@ -168,7 +167,6 @@ void SCEnergyCorrectorSemiParm::modifyObject(reco::SuperCluster &sc) {
     }      
     ++iclus;
   }  
-  
   // SET INPUTS
   eval[0]  = vertices_->size(); //nVtx
   eval[1]  = raw_energy; //scRawEnergy
@@ -236,6 +234,6 @@ void SCEnergyCorrectorSemiParm::modifyObject(reco::SuperCluster &sc) {
   sc.setEnergy(ecor);
   sc.setCorrectedEnergy(ecor);
   sc.setCorrectedEnergyUncertainty(sigmacor);
-  
+
 }
 

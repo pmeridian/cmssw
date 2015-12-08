@@ -107,7 +107,6 @@ setEvent(const edm::Event& evt) {
   if( !e_conf.tok_electron_src.isUninitialized() ) {
     edm::Handle<edm::View<pat::Electron> > eles;
     evt.getByToken(e_conf.tok_electron_src,eles);
-    
     for( unsigned i = 0; i < eles->size(); ++i ) {
       edm::Ptr<pat::Electron> ptr = eles->ptrAt(i);
       eles_by_oop[i] = ptr;
