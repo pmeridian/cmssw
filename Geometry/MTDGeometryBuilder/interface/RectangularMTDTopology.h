@@ -33,7 +33,7 @@
 // Add big pixel flags for cluster range 15/3/07 V.Chiochia
 
 # include "Geometry/CommonTopologies/interface/PixelTopology.h"
-# include "DataFormats/SiPixelDetId/interface/PixelChannelIdentifier.h"
+# include "DataFormats/ForwardDetId/interface/MTDChannelIdentifier.h"
 # include "FWCore/MessageLogger/interface/MessageLogger.h"
 
 
@@ -67,12 +67,13 @@ public:
       m_yoffset = -(m_ncols + BIG_PIX_PER_ROC_Y*m_ncols/COLS_PER_ROC)/2. * 
 		  m_pitchy;
 
-      LogDebug("RectangularMTDTopology") << "nrows " << m_nrows << ", ncols " << m_ncols << ", pitchx "
-					   << m_pitchx << ", pitchy " << m_pitchy << ", xoffset "
-					   << m_xoffset << ", yoffset " << m_yoffset << ", BIG_PIX_PER_ROC_X "
-					   << BIG_PIX_PER_ROC_X << ", BIG_PIX_PER_ROC_Y " << BIG_PIX_PER_ROC_Y << ", ROWS_PER_ROC "
-					   << ROWS_PER_ROC << ", COLS_PER_ROC " << COLS_PER_ROC << ", ROCS_X " << ROCS_X << ", ROCS_Y " << ROCS_Y
-					   << "\nNROWS " << m_ROWS_PER_ROC * m_ROCS_X << ", NCOL " << m_COLS_PER_ROC * m_ROCS_Y;
+      LogDebug("RectangularMTDTopology") 
+	<< "nrows " << m_nrows << ", ncols " << m_ncols << ", pitchx "
+	<< m_pitchx << ", pitchy " << m_pitchy << ", xoffset "
+	<< m_xoffset << ", yoffset " << m_yoffset << ", BIG_PIX_PER_ROC_X "
+	<< BIG_PIX_PER_ROC_X << ", BIG_PIX_PER_ROC_Y " << BIG_PIX_PER_ROC_Y << ", ROWS_PER_ROC "
+	<< ROWS_PER_ROC << ", COLS_PER_ROC " << COLS_PER_ROC << ", ROCS_X " << ROCS_X << ", ROCS_Y " << ROCS_Y
+	<< "\nNROWS " << m_ROWS_PER_ROC * m_ROCS_X << ", NCOL " << m_COLS_PER_ROC * m_ROCS_Y;      
     }
 
   // Topology interface, go from Masurement to Local corrdinates
@@ -103,8 +104,8 @@ public:
   //
   int channel( const LocalPoint& lp ) const override {
     std::pair<float,float> p = pixel( lp );
-    return PixelChannelIdentifier::pixelToChannel( int( p.first ), 
-						   int( p.second ));
+    return MTDChannelIdentifier::pixelToChannel( int( p.first ), 
+						 int( p.second ));
   }
 
   //-------------------------------------------------------------
