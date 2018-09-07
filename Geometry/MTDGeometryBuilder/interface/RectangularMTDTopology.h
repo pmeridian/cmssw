@@ -68,7 +68,7 @@ public:
 		  m_pitchy;
 
       LogDebug("RectangularMTDTopology") 
-	<< "nrows " << m_nrows << ", ncols " << m_ncols << ", pitchx "
+      	<< "nrows " << m_nrows << ", ncols " << m_ncols << ", pitchx "
 	<< m_pitchx << ", pitchy " << m_pitchy << ", xoffset "
 	<< m_xoffset << ", yoffset " << m_yoffset << ", BIG_PIX_PER_ROC_X "
 	<< BIG_PIX_PER_ROC_X << ", BIG_PIX_PER_ROC_Y " << BIG_PIX_PER_ROC_Y << ", ROWS_PER_ROC "
@@ -76,10 +76,10 @@ public:
 	<< "\nNROWS " << m_ROWS_PER_ROC * m_ROCS_X << ", NCOL " << m_COLS_PER_ROC * m_ROCS_Y;      
     }
 
-  // Topology interface, go from Masurement to Local corrdinates
+  // Topology interface, go from Masurement to Local module corrdinates
   // pixel coordinates (mp) -> cm (LocalPoint)
   LocalPoint localPosition( const MeasurementPoint& mp ) const override;
-
+  
   // Transform LocalPoint to Measurement. Call pixel().
   MeasurementPoint measurementPosition( const LocalPoint& lp ) 
       const override {
@@ -94,10 +94,10 @@ public:
   // Errors
   // Error in local (cm) from the masurement errors
   LocalError localError( const MeasurementPoint&,
-				 const MeasurementError& ) const override;
+			 const MeasurementError& ) const override;
   // Errors in pitch units from localpoint error (in cm)
   MeasurementError measurementError( const LocalPoint&, 
-					     const LocalError& ) const override;
+				     const LocalError& ) const override;
   
   //-------------------------------------------------------------
   // Transform LocalPoint to channel. Call pixel()
@@ -106,6 +106,25 @@ public:
     std::pair<float,float> p = pixel( lp );
     return MTDChannelIdentifier::pixelToChannel( int( p.first ), 
 						 int( p.second ));
+  }
+
+  //----
+  // Transforms between module-local coordinates and pixel-local coordinates
+  // don't need a transform for errors, same units
+  LocalPoint moduleToPixelLocalPoint(const LocalPoint& mlp) const {
+    std::pair<float,float> p = pixel( mlp );
+    return LocalPoint( mlp.x() - (m_xoffset + (int(p.first)+0.5f)*m_pitchx),
+		       mlp.y() - (m_yoffset + (int(p.second)+0.5f)*m_pitchy),
+		       mlp.z());
+  }
+  LocalPoint pixelToModuleLocalPoint(const LocalPoint& plp, int row, int col) const {    
+    return LocalPoint( plp.x() + (m_xoffset + (row+0.5f)*m_pitchx),
+		       plp.y() + (m_yoffset + (col+0.5f)*m_pitchy),
+		       plp.z()); 
+  }
+  LocalPoint pixelToModuleLocalPoint(const LocalPoint& plp, int channel) const {
+    std::pair<int,int> p = MTDChannelIdentifier::channelToPixel(channel);
+    return pixelToModuleLocalPoint(plp,p.first,p.second);
   }
 
   //-------------------------------------------------------------
