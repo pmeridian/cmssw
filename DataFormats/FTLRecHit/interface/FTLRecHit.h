@@ -1,6 +1,7 @@
 #ifndef DATAFORMATS_FTLRECHIT_H
 #define DATAFORMATS_FTLRECHIT_H 1
 
+#include "DataFormats/ForwardDetId/interface/MTDDetId.h"
 #include "DataFormats/CaloRecHit/interface/CaloRecHit.h"
 #include <vector>
 
@@ -47,6 +48,8 @@ public:
   
   const DetId& id() const { return id_; }
   const DetId& detid() const { return id(); }
+
+  const MTDDetId mtdId() const { return MTDDetId(id_); }
 
   int row() const { return row_; }
   int column() const { return column_; }
