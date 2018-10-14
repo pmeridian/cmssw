@@ -16,9 +16,7 @@
 <use   name="MagneticField/Records"/>
 <use   name="TrackPropagation/SteppingHelixPropagator"/>
 <use   name="TrackingTools/TrackAssociator"/>
-<library   file="TestTrackAssociator.cc" name="testTrackingToolsTrackAssociator">
+<library   file="TestTrackAssociator.cc" name="testRecoMTDTrackAssociator">
   <flags   EDM_PLUGIN="1"/>
 </library>
-<library   file="CaloMatchingExample.cc" name="testCaloMatchingExample">
-  <flags   EDM_PLUGIN="1"/>
-</library>
+
