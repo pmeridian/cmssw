@@ -159,7 +159,7 @@ MTDRecHitProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
     MTDTrackingDetSetVector::FastFiller recHitsOnDet(theoutputhits,id);
     for(auto itr = range.first; itr != range.second; ++itr) {
       const unsigned hitidx = itr->second;
-      MeasurementPoint mp(hits[hitidx].row(),hits[hitidx].column());
+      MeasurementPoint mp(hits[hitidx].column(),hits[hitidx].row()); // column gives x coord, row y!
       lp=topo.localPosition(mp);
       le=topo.localError(mp,simpleRect);
       edm::Ref<FTLRecHitCollection> ref(handle,hitidx);
