@@ -47,6 +47,7 @@ void BTLDeviceSim::getHitsResponse(const std::vector<std::tuple<int,uint32_t,flo
     BTLDetId btlid(detId) ;
     DetId geoId = BTLDetId(btlid.mtdSide(),btlid.mtdRR(),btlid.module()+18*(btlid.modType()-1),0,1);
     const MTDGeomDet* thedet = geom_->idToDet(geoId);
+
     if( thedet == nullptr ) {
       throw cms::Exception("BTLDeviceSim") << "GeographicalID: " << std::hex
                                            << geoId.rawId()
@@ -54,21 +55,23 @@ void BTLDeviceSim::getHitsResponse(const std::vector<std::tuple<int,uint32_t,flo
                                            << std::endl;
     }
     const ProxyMTDTopology& topoproxy = static_cast<const ProxyMTDTopology&>(thedet->topology());
-    const RectangularMTDTopology& topo = static_cast<const RectangularMTDTopology&>(topoproxy.specificTopology());
+    const RectangularMTDTopology& topo = static_cast<const RectangularMTDTopology&>(topoproxy.specificTopology());    
     // calculate the simhit row and column                                                                           
     const auto& pentry = hit.entryPoint();
-    Local3DPoint simscaled(0.1*pentry.x(),0.1*pentry.y(),0.1*pentry.z());
+    Local3DPoint simscaled(0.1*pentry.x(),0.1*pentry.y(),0.1*pentry.z()); // mm -> cm here is the switch
     // translate from crystal-local coordinates to module-local coordinates to get the row and column
-    simscaled = topo.pixelToModuleLocalPoint(simscaled,btlid.row(),btlid.column());
-    const auto& thepixel = topo.pixel(simscaled); // mm -> cm here is the switch
-    const uint8_t row(thepixel.first), col(thepixel.second);
-
-    if( btlid.row() != row || btlid.column() != col ) {
-      throw cms::Exception("BTLDeviceSim")
-	<< "BTLDetId (row,column): (" << btlid.row() << ',' << btlid.column() <<") is not equal to "
-	<< "topology (row,column): (" << uint32_t(row) << ',' << uint32_t(col) <<")";
+    simscaled = topo.pixelToModuleLocalPoint(simscaled,btlid.row(topo.nrows()),btlid.column(topo.nrows()));
+    const auto& thepixel = topo.pixel(simscaled); 
+    uint8_t row(thepixel.first), col(thepixel.second);
+            
+    if( btlid.row(topo.nrows()) != row || btlid.column(topo.nrows()) != col ) {
+      edm::LogWarning("BTLDeviceSim") 
+	<< "BTLDetId (row,column): (" << btlid.row(topo.nrows()) << ',' << btlid.column(topo.nrows()) <<") is not equal to "
+	<< "topology (row,column): (" << uint32_t(row) << ',' << uint32_t(col) <<"), overriding to detid";
+      row = btlid.row(topo.nrows());
+      col = btlid.column(topo.nrows());	
     }
-    
+        
     // --- Store the detector element ID as a key of the MTDSimHitDataAccumulator map
     auto simHitIt = simHitAccumulator->emplace(mtd_digitizer::MTDCellId(id,row,col),
 					       mtd_digitizer::MTDCellInfo()).first;

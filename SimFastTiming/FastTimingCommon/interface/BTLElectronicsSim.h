@@ -34,7 +34,9 @@ class BTLElectronicsSim {
   void runTrivialShaper(BTLDataFrame &dataFrame, 
 			const mtd::MTDSimHitData& chargeColl,
 			const mtd::MTDSimHitData& toa1,
-			const mtd::MTDSimHitData& toa2) const;
+			const mtd::MTDSimHitData& toa2,
+			const uint8_t row,
+			const uint8_t col) const;
 
   void updateOutput(BTLDigiCollection &coll,
 		    const BTLDataFrame& rawDataFrame) const;
