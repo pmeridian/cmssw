@@ -124,7 +124,7 @@ MTDRecHitProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
   unsigned index = 0;
   for(const auto& hit : barrelHits) {    
     BTLDetId hitId(hit.detid());
-    DetId geoId = BTLDetId(hitId.mtdSide(),hitId.mtdRR(),hitId.module()+18*(hitId.modType()-1),0,1);    
+    DetId geoId = hitId.geographicalId();
     geoIdToIdx.emplace(geoId,index);
     geoIds.emplace(geoId);
     ++index;
@@ -133,7 +133,7 @@ MTDRecHitProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
   index = 0;
   for(const auto& hit : endcapHits) {    
     ETLDetId hitId(hit.detid());
-    DetId geoId = ETLDetId(hitId.mtdSide(),hitId.mtdRR(),hitId.module(),0);
+    DetId geoId = hitId.geographicalId();
     geoIdToIdx.emplace(geoId,index);
     geoIds.emplace(geoId);
     ++index;
@@ -159,7 +159,7 @@ MTDRecHitProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
     MTDTrackingDetSetVector::FastFiller recHitsOnDet(theoutputhits,id);
     for(auto itr = range.first; itr != range.second; ++itr) {
       const unsigned hitidx = itr->second;
-      MeasurementPoint mp(hits[hitidx].column(),hits[hitidx].row()); // column gives x coord, row y!
+      MeasurementPoint mp(hits[hitidx].row(),hits[hitidx].column());
       lp=topo.localPosition(mp);
       le=topo.localError(mp,simpleRect);
       edm::Ref<FTLRecHitCollection> ref(handle,hitidx);

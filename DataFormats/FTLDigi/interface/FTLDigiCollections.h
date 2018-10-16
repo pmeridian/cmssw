@@ -18,8 +18,8 @@ namespace mtdhelpers {
   };
 
   struct BTLRowColDecode {
-    static inline int row(const DetId& id, const std::vector<BTLSample>& data) { return BTLDetId(id).row(); }
-    static inline int col(const DetId& id, const std::vector<BTLSample>& data) { return BTLDetId(id).column(); }
+    static inline int row(const DetId& id, const std::vector<BTLSample>& data) { return data.front().row(); }
+    static inline int col(const DetId& id, const std::vector<BTLSample>& data) { return data.front().column(); }
   };
 
   struct ETLRowColDecode {
