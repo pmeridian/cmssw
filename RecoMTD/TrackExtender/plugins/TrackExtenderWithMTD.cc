@@ -132,7 +132,8 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
   ev.getByToken(hitsToken_,hitsH);
   const auto& hits = *hitsH;
 
-  for( const auto& track : tracks ) {    
+  for( const auto& track : tracks ) {  
+    std::cout << "NEW TRACK" << std::endl;
     tryBTLLayers(track,hits,geo.product(),magfield.product());
     tryETLLayers(track,hits,geo.product(),magfield.product());
   }
@@ -148,6 +149,8 @@ TrackExtenderWithMTDT<TrackCollection>::tryBTLLayers(const TrackType& track,
 						     const MagneticField* field) const {
   auto output = track;
   const vector<const DetLayer*>& layers = geo->allBTLLayers();
+
+  auto cmp = [](const unsigned one, const unsigned two) -> bool { return one < two; };
 
   auto tTrack = builder->build(track);
 
@@ -198,6 +201,14 @@ TrackExtenderWithMTDT<TrackCollection>::tryBTLLayers(const TrackType& track,
 	       << "  distance " << (tsos.globalPosition()-detWithState.first->position()).mag()
 	       << endl
 	       << endl; 
+
+	  auto range = hits.equal_range(detWithState.first->geographicalId(),cmp);
+	  for( auto detitr = range.first; detitr != range.second; ++detitr ) {
+	    std::cout << "\tdet with hits: " << std::distance(range.first,detitr) << ' ' << detitr->size() << std::endl;
+	    for( auto itr = detitr->begin(); itr != detitr->end(); ++itr ) {
+	      std::cout << itr->localPosition() << ' ' << itr->localPositionError() << std::endl;
+	    }
+	  }	  
 	}     
 	
       } else {
@@ -217,11 +228,15 @@ TrackExtenderWithMTDT<TrackCollection>::tryETLLayers(const TrackType& track,
   auto output = track;
   const vector<const DetLayer*>& layers = geo->allETLLayers();
 
+  auto cmp = [](const unsigned one, const unsigned two) -> bool { return one < two; };
+
   auto tTrack = builder->build(track);
 
   for (auto ilay = layers.begin(); ilay!=layers.end(); ++ilay) {
     const MTDRingForwardDoubleLayer* layer = (const MTDRingForwardDoubleLayer*) (*ilay);
-    
+    const BoundDisk& disk = layer->specificSurface();
+    const double diskZ = disk.position().z();
+
     // get the outermost trajectory point on the track    
     TrajectoryStateOnSurface tsos = tTrack.outermostMeasurementState();
     cout << "testETLLayers: at " << tsos.globalPosition()
@@ -231,6 +246,7 @@ TrackExtenderWithMTDT<TrackCollection>::tryETLLayers(const TrackType& track,
 	 << " p = " << tsos.globalMomentum()
 	 << endl;
 
+    if( tsos.globalPosition().z() * diskZ < 0 ) continue; // only propagate to the disk that's on the same side
 
     SteppingHelixPropagator prop(field,anyDirection);
 
@@ -242,9 +258,9 @@ TrackExtenderWithMTDT<TrackCollection>::tryETLLayers(const TrackType& track,
 	   << " Z=" <<  comp.second.globalPosition().z()
 	   << endl;
       auto gp = comp.second.globalPosition();
-      
+            
       // if we're compatible with the disc, try to find modules
-    
+
       vector<DetLayer::DetWithState> compDets = layer->compatibleDets(tsos,prop,*theEstimator);
       const bool hasDets = compDets.size();
       if( hasDets ) {
@@ -268,6 +284,15 @@ TrackExtenderWithMTDT<TrackCollection>::tryETLLayers(const TrackType& track,
 	       << "  distance " << (tsos.globalPosition()-detWithState.first->position()).mag()
 	       << endl
 	       << endl;
+	  
+	  auto range = hits.equal_range(detWithState.first->geographicalId(),cmp);
+	  for( auto detitr = range.first; detitr != range.second; ++detitr ) {
+	    std::cout << "\tdet with hits: " << std::distance(range.first,detitr) << ' ' << detitr->size() << std::endl;
+	    for( auto itr = detitr->begin(); itr != detitr->end(); ++itr ) {
+	      std::cout << itr->localPosition() << ' ' << itr->localPositionError() << std::endl;
+	    }
+	  }
+	  
 	}
       } else {
 	if(layer->isCrack(gp))
