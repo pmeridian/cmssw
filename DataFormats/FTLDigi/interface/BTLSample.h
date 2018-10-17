@@ -23,9 +23,9 @@ public:
   /**
      @short CTOR
   */
- BTLSample() : value_(0), flag_(0) { }
- BTLSample(uint32_t value, uint16_t flag) : value_(value), flag_(flag) { }
- BTLSample( const BTLSample& o ) : value_(o.value_), flag_(o.flag_) { }
+ BTLSample() : value_(0), flag_(0), row_(0), col_(0) { }
+ BTLSample(uint32_t value, uint16_t flag, uint8_t row, uint8_t col) : value_(value), flag_(flag), row_(row), col_(col) { }
+ BTLSample( const BTLSample& o ) : value_(o.value_), flag_(o.flag_), row_(o.row_), col_(o.col_) { }
   
   /**
      @short setters
