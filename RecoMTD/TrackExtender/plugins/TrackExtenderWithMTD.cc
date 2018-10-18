@@ -16,6 +16,7 @@
 #include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
 
 #include "TrackPropagation/SteppingHelixPropagator/interface/SteppingHelixPropagator.h"
+#include "TrackingTools/MaterialEffects/interface/PropagatorWithMaterial.h"
 #include "TrackingTools/KalmanUpdators/interface/Chi2MeasurementEstimator.h"
 
 #include "DataFormats/TrackerRecHit2D/interface/MTDTrackingRecHit.h"
@@ -166,7 +167,7 @@ TrackExtenderWithMTDT<TrackCollection>::tryBTLLayers(const TrackType& track,
 	 << " p = " << tsos.globalMomentum()
 	 << endl;
     
-    SteppingHelixPropagator prop(field,anyDirection);
+    PropagatorWithMaterial prop(anyDirection,0.13957018,field,1.6,false,0.1,true);
 
     pair<bool, TrajectoryStateOnSurface> comp = layer->compatible(tsos,prop,*theEstimator);
     if( comp.first ) {
@@ -187,11 +188,11 @@ TrackExtenderWithMTDT<TrackCollection>::tryBTLLayers(const TrackType& track,
 	  auto pixel = static_cast<const PixelTopology&>(detWithState.first->topology()).pixel(local_pos);
 	  auto theChannel =  detWithState.first->topology().channel(local_pos);
 	  auto pixFromCh = MTDChannelIdentifier::channelToPixel(theChannel);
-	  
+	  LocalError err = detWithState.second.localError().positionError();
 	  
 	  cout << "compatibleDets: " << compDets.size() << endl
 	       << "  final state pos: " << prop_pos << endl 
-	       << "  local state pos: " << local_pos << endl
+	       << "  local state pos: " << local_pos << ' ' << std::sqrt(err.xx()) << ' ' << std::sqrt(err.yy()) << endl
 	       << "  measurement pos: " << meas_point << endl
 	       << " pixel : (" << pixel.first << ',' << pixel.second << ')' << endl
 	       << "       : (" << pixFromCh.first << ',' << pixFromCh.second << ')' << endl
@@ -206,7 +207,9 @@ TrackExtenderWithMTDT<TrackCollection>::tryBTLLayers(const TrackType& track,
 	  for( auto detitr = range.first; detitr != range.second; ++detitr ) {
 	    std::cout << "\tdet with hits: " << std::distance(range.first,detitr) << ' ' << detitr->size() << std::endl;
 	    for( auto itr = detitr->begin(); itr != detitr->end(); ++itr ) {
-	      std::cout << itr->localPosition() << ' ' << itr->localPositionError() << std::endl;
+	      auto est =  theEstimator->estimate(detWithState.second,*itr);
+	      std::cout << itr->localPosition() << ' ' << itr->localPositionError() << ' ' 
+			<< est.first << ' ' << est.second << ' ' << track.chi2() << ' ' << track.ndof() << std::endl;
 	    }
 	  }	  
 	}     
@@ -248,7 +251,7 @@ TrackExtenderWithMTDT<TrackCollection>::tryETLLayers(const TrackType& track,
 
     if( tsos.globalPosition().z() * diskZ < 0 ) continue; // only propagate to the disk that's on the same side
 
-    SteppingHelixPropagator prop(field,anyDirection);
+    PropagatorWithMaterial prop(anyDirection,0.13957018,field,1.6,false,0.1,true);
 
     pair<bool, TrajectoryStateOnSurface> comp = layer->compatible(tsos,prop,*theEstimator);
     if( comp.first ) {
@@ -271,10 +274,11 @@ TrackExtenderWithMTDT<TrackCollection>::tryETLLayers(const TrackType& track,
 	  auto pixel = static_cast<const PixelTopology&>(detWithState.first->topology()).pixel(local_pos);
 	  auto theChannel =  detWithState.first->topology().channel(local_pos);
 	  auto pixFromCh = MTDChannelIdentifier::channelToPixel(theChannel);
+	  LocalError err = detWithState.second.localError().positionError();
 	  
 	  cout << "compatibleDets: " << compDets.size() << endl
 	       << "  final state pos: " << prop_pos << endl 
-	       << "  local state pos: " <<  local_pos << endl
+	       << "  local state pos: " <<  local_pos << ' ' << std::sqrt(err.xx()) << ' ' << std::sqrt(err.yy()) << endl
 	       << "  measurement pos: " << meas_point << endl
 	       << "  channel: " << theChannel << endl
 	       << " pixel : (" << pixel.first << ',' << pixel.second << ')' << endl
@@ -285,11 +289,22 @@ TrackExtenderWithMTDT<TrackCollection>::tryETLLayers(const TrackType& track,
 	       << endl
 	       << endl;
 	  
-	  auto range = hits.equal_range(detWithState.first->geographicalId(),cmp);
+	  auto range = hits.equal_range(detWithState.first->geographicalId(),cmp);	  
 	  for( auto detitr = range.first; detitr != range.second; ++detitr ) {
 	    std::cout << "\tdet with hits: " << std::distance(range.first,detitr) << ' ' << detitr->size() << std::endl;
+	    auto best = detitr->end();
+	    double best_chi2 = std::numeric_limits<double>::max();
 	    for( auto itr = detitr->begin(); itr != detitr->end(); ++itr ) {
-	      std::cout << itr->localPosition() << ' ' << itr->localPositionError() << std::endl;
+	      auto est =  theEstimator->estimate(detWithState.second,*itr);
+	      std::cout << itr->localPosition() << ' ' << itr->localPositionError() << ' ' 
+			<< est.first << ' ' << est.second << ' ' << track.chi2() << ' ' << track.ndof() << std::endl;
+	      if( est.first && est.second < best_chi2 ) { // just take the best chi2
+		best = itr;
+		best_chi2 = est.second;
+	      }
+	    }
+	    if( best != detitr->end() ) {
+	      std::cout << "adding hit to the track!" << std::endl;
 	    }
 	  }
 	  
