@@ -6,6 +6,7 @@
 <use   name="RecoTracker/TkDetLayers"/>
 <use   name="TrackingTools/DetLayers"/>
 <use   name="TrackingTools/TrajectoryState"/>
+<use   name="TrackingTools/TrackRefitter"/>
 <use   name="Utilities/General"/>
 <export>
   <lib   name="1"/>

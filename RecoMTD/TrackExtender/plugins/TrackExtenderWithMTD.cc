@@ -33,9 +33,18 @@
 #include <DataFormats/ForwardDetId/interface/MTDChannelIdentifier.h>
 #include "Geometry/CommonTopologies/interface/PixelTopology.h"
 
+#include "TrackingTools/PatternTools/interface/Trajectory.h"
+
 #include "TrackingTools/TransientTrack/interface/TransientTrack.h"
 #include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
 #include "TrackingTools/Records/interface/TransientTrackRecord.h"
+
+#include "TrackingTools/TransientTrackingRecHit/interface/TransientTrackingRecHit.h"
+
+#include "RecoMTD/TransientTrackingRecHit/interface/MTDTransientTrackingRecHitBuilder.h"
+#include "TrackingTools/Records/interface/TransientRecHitRecord.h"
+
+#include "TrackingTools/TrackRefitter/interface/TrackTransformer.h"
 
 #include <sstream>
 
@@ -57,14 +66,31 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
 
   void produce(edm::Event& ev, const edm::EventSetup& es) override final;
 
-  TrackType tryBTLLayers(const TrackType&, 
-			 const MTDTrackingDetSetVector&,
-			 const MTDDetLayerGeometry*, 
-			 const MagneticField* field) const;
-  TrackType tryETLLayers(const TrackType&,
-			 const MTDTrackingDetSetVector&,
-			 const MTDDetLayerGeometry*, 
-			 const MagneticField* field) const;
+  TransientTrackingRecHit::ConstRecHitContainer tryBTLLayers(const TrackType&, 
+							     const MTDTrackingDetSetVector&,
+							     const MTDDetLayerGeometry*, 
+							     const MagneticField* field) const;
+  TransientTrackingRecHit::ConstRecHitContainer tryETLLayers(const TrackType&,
+							     const MTDTrackingDetSetVector&,
+							     const MTDDetLayerGeometry*, 
+							     const MagneticField* field) const;
+  
+  RefitDirection::GeometricalDirection
+  checkRecHitsOrdering(TransientTrackingRecHit::ConstRecHitContainer const & recHits) const {
+    
+    if (!recHits.empty()){
+      GlobalPoint first = gtg->idToDet(recHits.front()->geographicalId())->position();
+      GlobalPoint last = gtg->idToDet(recHits.back()->geographicalId())->position();
+      
+      // maybe perp2?
+      auto rFirst = first.mag2();
+      auto rLast  = last.mag2();
+      if(rFirst < rLast) return RefitDirection::insideOut;
+      if(rFirst > rLast) return RefitDirection::outsideIn;
+    }
+    LogDebug("Reco|TrackingTools|TrackTransformer") << "Impossible to determine the rechits order" <<endl;
+    return RefitDirection::undetermined;
+  }
 
   string dumpLayer(const DetLayer* layer) const;
 
@@ -72,7 +98,10 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
   edm::EDGetTokenT<InputCollection> tracksToken_;
   edm::EDGetTokenT<MTDTrackingDetSetVector> hitsToken_;
   std::unique_ptr<MeasurementEstimator> theEstimator;
+  std::unique_ptr<TrackTransformer> theTransformer;
   edm::ESHandle<TransientTrackBuilder> builder;
+  edm::ESHandle<TransientTrackingRecHitBuilder> hitbuilder;
+  edm::ESHandle<GlobalTrackingGeometry> gtg;
 };
 
 
@@ -82,6 +111,8 @@ TrackExtenderWithMTDT<TrackCollection>::TrackExtenderWithMTDT(const ParameterSet
   float theNSigma=3.;
   theEstimator = std::make_unique<Chi2MeasurementEstimator>(theMaxChi2,theNSigma);
   
+  theTransformer = std::make_unique<TrackTransformer>(iConfig.getParameterSet("TrackTransformer"));
+
   tracksToken_ = consumes<InputCollection>(iConfig.getParameter<edm::InputTag>("tracksSrc"));
   hitsToken_ = consumes<MTDTrackingDetSetVector>(iConfig.getParameter<edm::InputTag>("hitsSrc"));
 
@@ -92,6 +123,11 @@ template<class TrackCollection>
 void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
 						      const edm::EventSetup& es ) {
   
+  theTransformer->setServices(es);
+
+  
+  es.get<GlobalTrackingGeometryRecord>().get(gtg);
+
   edm::ESHandle<MTDDetLayerGeometry> geo;
   es.get<MTDRecoGeometryRecord>().get(geo);
 
@@ -99,6 +135,8 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
   es.get<IdealMagneticFieldRecord>().get(magfield);  
     
   es.get<TransientTrackRecord>().get("TransientTrackBuilder", builder);
+
+  es.get<TransientRecHitRecord>().get("MTDRecHitBuilder",hitbuilder);
 
   // Some printouts
 
@@ -135,20 +173,45 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
 
   for( const auto& track : tracks ) {  
     std::cout << "NEW TRACK" << std::endl;
-    tryBTLLayers(track,hits,geo.product(),magfield.product());
-    tryETLLayers(track,hits,geo.product(),magfield.product());
+    reco::TransientTrack ttrack(track,magfield.product(),gtg);
+    auto trajs = theTransformer->transform(track);
+    auto thits = theTransformer->getTransientRecHits(ttrack);
+
+    std::cout << "track resulted in " << trajs.size() << " trajectories and " << thits.size() << " hits!" << std::endl;
+
+    TransientTrackingRecHit::ConstRecHitContainer mtdthits;
+    for( auto& ahit : tryBTLLayers(track,hits,geo.product(),magfield.product()) ) {
+      mtdthits.push_back(ahit);
+    }
+    for( auto& ahit : tryETLLayers(track,hits,geo.product(),magfield.product()) ) {
+      mtdthits.push_back(ahit);
+    }
+
+    std::cout << "got " << mtdthits.size() << " new transient hits" << std::endl;
+    
+    auto ordering = checkRecHitsOrdering(thits);
+    if( ordering == RefitDirection::insideOut) {
+      for( auto& ahit : mtdthits ) thits.push_back(ahit);    
+    } else {
+      std::reverse(mtdthits.begin(),mtdthits.end());
+      for( auto& ahit : thits ) mtdthits.push_back(ahit);
+      thits.swap(mtdthits);
+    }
+    std::cout << "refitting the track with " << thits.size() << " MTD rechits included" << std::endl;
+    auto trajwithmtd = theTransformer->transform(ttrack,thits);
+    std::cout << "refitting resulted in " << trajwithmtd.size() << "trajectories!" << std::endl;
   }
 
   ev.put(std::move(output));
 }
 
 template<class TrackCollection>
-typename TrackExtenderWithMTDT<TrackCollection>::TrackType
+TransientTrackingRecHit::ConstRecHitContainer
 TrackExtenderWithMTDT<TrackCollection>::tryBTLLayers(const TrackType& track,
 						     const MTDTrackingDetSetVector& hits,
 						     const MTDDetLayerGeometry* geo,
 						     const MagneticField* field) const {
-  auto output = track;
+  TransientTrackingRecHit::ConstRecHitContainer output;
   const vector<const DetLayer*>& layers = geo->allBTLLayers();
 
   auto cmp = [](const unsigned one, const unsigned two) -> bool { return one < two; };
@@ -203,15 +266,24 @@ TrackExtenderWithMTDT<TrackCollection>::tryBTLLayers(const TrackType& track,
 	       << endl
 	       << endl; 
 
-	  auto range = hits.equal_range(detWithState.first->geographicalId(),cmp);
+	  auto range = hits.equal_range(detWithState.first->geographicalId(),cmp);	  
 	  for( auto detitr = range.first; detitr != range.second; ++detitr ) {
 	    std::cout << "\tdet with hits: " << std::distance(range.first,detitr) << ' ' << detitr->size() << std::endl;
+	    auto best = detitr->end();
+	    double best_chi2 = std::numeric_limits<double>::max();
 	    for( auto itr = detitr->begin(); itr != detitr->end(); ++itr ) {
 	      auto est =  theEstimator->estimate(detWithState.second,*itr);
 	      std::cout << itr->localPosition() << ' ' << itr->localPositionError() << ' ' 
 			<< est.first << ' ' << est.second << ' ' << track.chi2() << ' ' << track.ndof() << std::endl;
+	      if( est.first && est.second < best_chi2 ) { // just take the best chi2
+		best = itr;
+		best_chi2 = est.second;
+	      }
 	    }
-	  }	  
+	    if( best != detitr->end() ) {
+	      output.push_back(hitbuilder->build(&*best));
+	    }
+	  }	  	  
 	}     
 	
       } else {
@@ -223,12 +295,12 @@ TrackExtenderWithMTDT<TrackCollection>::tryBTLLayers(const TrackType& track,
 }
 
 template<class TrackCollection>
-typename TrackExtenderWithMTDT<TrackCollection>::TrackType
+TransientTrackingRecHit::ConstRecHitContainer
 TrackExtenderWithMTDT<TrackCollection>::tryETLLayers(const TrackType& track, 
 						     const MTDTrackingDetSetVector& hits,
 						     const MTDDetLayerGeometry* geo,
 						     const MagneticField* field) const {
-  auto output = track;
+  TransientTrackingRecHit::ConstRecHitContainer output;
   const vector<const DetLayer*>& layers = geo->allETLLayers();
 
   auto cmp = [](const unsigned one, const unsigned two) -> bool { return one < two; };
@@ -304,7 +376,7 @@ TrackExtenderWithMTDT<TrackCollection>::tryETLLayers(const TrackType& track,
 	      }
 	    }
 	    if( best != detitr->end() ) {
-	      std::cout << "adding hit to the track!" << std::endl;
+	      output.push_back(hitbuilder->build(&*best));
 	    }
 	  }
 	  
@@ -353,7 +425,7 @@ string TrackExtenderWithMTDT<TrackCollection>::dumpLayer(const DetLayer* layer) 
 #include "DataFormats/GsfTrackReco/interface/GsfTrack.h"
 #include "DataFormats/GsfTrackReco/interface/GsfTrackFwd.h"
 typedef TrackExtenderWithMTDT<reco::TrackCollection> TrackExtenderWithMTD;
-typedef TrackExtenderWithMTDT<reco::GsfTrackCollection> GSFTrackExtenderWithMTD;
+//typedef TrackExtenderWithMTDT<reco::GsfTrackCollection> GSFTrackExtenderWithMTD;
 
 DEFINE_FWK_MODULE(TrackExtenderWithMTD);
-DEFINE_FWK_MODULE(GSFTrackExtenderWithMTD);
+//DEFINE_FWK_MODULE(GSFTrackExtenderWithMTD);
