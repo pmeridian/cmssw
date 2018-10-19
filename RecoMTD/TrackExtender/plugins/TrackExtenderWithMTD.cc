@@ -189,10 +189,16 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
 
     std::cout << "got " << mtdthits.size() << " new transient hits" << std::endl;
     
+    for( const auto& mtdhit : mtdthits ) {
+      
+    }
+
     auto ordering = checkRecHitsOrdering(thits);
     if( ordering == RefitDirection::insideOut) {
+      std::cout << "fit is inside-out" << std::endl;
       for( auto& ahit : mtdthits ) thits.push_back(ahit);    
     } else {
+      std::cout << "fit is outside-in" << std::endl;
       std::reverse(mtdthits.begin(),mtdthits.end());
       for( auto& ahit : thits ) mtdthits.push_back(ahit);
       thits.swap(mtdthits);
