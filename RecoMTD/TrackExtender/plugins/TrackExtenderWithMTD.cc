@@ -178,6 +178,10 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
     auto thits = theTransformer->getTransientRecHits(ttrack);
 
     std::cout << "track resulted in " << trajs.size() << " trajectories and " << thits.size() << " hits!" << std::endl;
+    for( const auto& trj : trajs ) {
+      std::cout << "original track chi2: " << trj.chiSquared() 
+		<< " ndof: " << trj.ndof() << std::endl;
+    }
 
     TransientTrackingRecHit::ConstRecHitContainer mtdthits;
     for( auto& ahit : tryBTLLayers(track,hits,geo.product(),magfield.product()) ) {
@@ -189,10 +193,6 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
 
     std::cout << "got " << mtdthits.size() << " new transient hits" << std::endl;
     
-    for( const auto& mtdhit : mtdthits ) {
-      
-    }
-
     auto ordering = checkRecHitsOrdering(thits);
     if( ordering == RefitDirection::insideOut) {
       std::cout << "fit is inside-out" << std::endl;
@@ -205,7 +205,11 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
     }
     std::cout << "refitting the track with " << thits.size() << " MTD rechits included" << std::endl;
     auto trajwithmtd = theTransformer->transform(ttrack,thits);
-    std::cout << "refitting resulted in " << trajwithmtd.size() << "trajectories!" << std::endl;
+    std::cout << "refitting resulted in " << trajwithmtd.size() << " trajectories!" << std::endl;
+    for( const auto& trj : trajwithmtd ) {
+      std::cout << "mtd track chi2: " << trj.chiSquared() 
+		<< " ndof: " << trj.ndof() << std::endl;
+    }
   }
 
   ev.put(std::move(output));
