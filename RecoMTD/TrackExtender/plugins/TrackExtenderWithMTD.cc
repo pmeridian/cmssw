@@ -44,6 +44,8 @@
 #include "RecoMTD/TransientTrackingRecHit/interface/MTDTransientTrackingRecHitBuilder.h"
 #include "TrackingTools/Records/interface/TransientRecHitRecord.h"
 
+#include "TrackingTools/PatternTools/interface/TSCBLBuilderWithPropagator.h"
+
 #include "TrackingTools/TrackRefitter/interface/TrackTransformer.h"
 
 #include <sstream>
@@ -92,11 +94,14 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
     return RefitDirection::undetermined;
   }
 
+  reco::Track buildTrack(const reco::Track&, const Trajectory&, const reco::BeamSpot&, const MagneticField* field) const;
+
   string dumpLayer(const DetLayer* layer) const;
 
  private:
   edm::EDGetTokenT<InputCollection> tracksToken_;
   edm::EDGetTokenT<MTDTrackingDetSetVector> hitsToken_;
+  edm::EDGetTokenT<reco::BeamSpot> bsToken_;
   std::unique_ptr<MeasurementEstimator> theEstimator;
   std::unique_ptr<TrackTransformer> theTransformer;
   edm::ESHandle<TransientTrackBuilder> builder;
@@ -115,6 +120,7 @@ TrackExtenderWithMTDT<TrackCollection>::TrackExtenderWithMTDT(const ParameterSet
 
   tracksToken_ = consumes<InputCollection>(iConfig.getParameter<edm::InputTag>("tracksSrc"));
   hitsToken_ = consumes<MTDTrackingDetSetVector>(iConfig.getParameter<edm::InputTag>("hitsSrc"));
+  bsToken_ = consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamSpotSrc"));
 
   produces<TrackCollection>();
 }
@@ -171,6 +177,10 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
   ev.getByToken(hitsToken_,hitsH);
   const auto& hits = *hitsH;
 
+  edm::Handle<reco::BeamSpot> bsH;  
+  ev.getByToken(bsToken_,bsH);
+  const auto& bs = *bsH;
+
   for( const auto& track : tracks ) {  
     std::cout << "NEW TRACK" << std::endl;
     reco::TransientTrack ttrack(track,magfield.product(),gtg);
@@ -209,8 +219,22 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
     for( const auto& trj : trajwithmtd ) {
       std::cout << "mtd track chi2: " << trj.chiSquared() 
 		<< " ndof: " << trj.ndof() << std::endl;
+      reco::Track result = buildTrack(track, trj, bs, magfield.product());
+      if( result.ndof() > 0 ) {
+	output->push_back(result);
+	std::cout << "input track: " 
+		  << track.pt() << ' ' << track.eta() << ' ' << track.phi() << ' '
+		  << track.chi2() << ' ' << track.ndof() << ' ' << track.dxy() << ' '
+		  << track.dz() << std::endl;
+	std::cout << "added track: " 
+		  << result.pt() << ' ' << result.eta() << ' ' << result.phi() << ' '
+		  << result.chi2() << ' ' << result.ndof() << ' ' << result.dxy() << ' '
+		  << result.dz() << std::endl;
+      }
     }
   }
+
+  std::cout << "from " << tracks.size() << " input tracks got " << output->size() << " tracks with MTD!" << std::endl;
 
   ev.put(std::move(output));
 }
@@ -223,7 +247,7 @@ TrackExtenderWithMTDT<TrackCollection>::tryBTLLayers(const TrackType& track,
 						     const MagneticField* field) const {
   TransientTrackingRecHit::ConstRecHitContainer output;
   const vector<const DetLayer*>& layers = geo->allBTLLayers();
-
+  
   auto cmp = [](const unsigned one, const unsigned two) -> bool { return one < two; };
 
   auto tTrack = builder->build(track);
@@ -408,6 +432,48 @@ TrackExtenderWithMTDT<TrackCollection>::tryETLLayers(const TrackType& track,
     }
   }
   return output;
+}
+
+
+//below is unfortunately ripped from other places but 
+//since track producer doesn't know about MTD we have to do this
+template<class TrackCollection>
+reco::Track TrackExtenderWithMTDT<TrackCollection>::buildTrack(const reco::Track& orig,
+							       const Trajectory& traj,
+							       const reco::BeamSpot& bs,
+							       const MagneticField* field) const {  
+  // get the state closest to the beamline
+  TrajectoryStateOnSurface stateForProjectionToBeamLineOnSurface = 
+    traj.closestMeasurement(GlobalPoint(bs.x0(),bs.y0(),bs.z0())).updatedState();
+  
+  if UNLIKELY(!stateForProjectionToBeamLineOnSurface.isValid()){
+    edm::LogError("CannotPropagateToBeamLine")<<"the state on the closest measurement isnot valid. skipping track.";
+    return reco::Track();
+  }
+
+  const FreeTrajectoryState & stateForProjectionToBeamLine=*stateForProjectionToBeamLineOnSurface.freeState();
+
+  PropagatorWithMaterial thePropagator(anyDirection,0.13957018,field,1.6,false,0.1,true);
+  
+  TSCBLBuilderWithPropagator tscblBuilder(thePropagator);
+  TrajectoryStateClosestToBeamLine tscbl = tscblBuilder(stateForProjectionToBeamLine,bs);
+  
+  if UNLIKELY(!tscbl.isValid()) {
+    return reco::Track();
+  }
+
+  GlobalPoint v = tscbl.trackStateAtPCA().position();
+  math::XYZPoint  pos( v.x(), v.y(), v.z() );
+  GlobalVector p = tscbl.trackStateAtPCA().momentum();
+  math::XYZVector mom( p.x(), p.y(), p.z() );
+
+  int ndof = traj.ndof();
+  
+  return reco::Track(traj.chiSquared(),
+		     int(ndof),//FIXME fix weight() in TrackingRecHit
+		     pos, mom, tscbl.trackStateAtPCA().charge(), 
+		     tscbl.trackStateAtPCA().curvilinearError(),
+		     orig.algo());
 }
 
 template<class TrackCollection>

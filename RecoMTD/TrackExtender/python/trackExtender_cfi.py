@@ -4,6 +4,7 @@ trackExtender = cms.EDProducer(
     'TrackExtenderWithMTD',
     tracksSrc = cms.InputTag("generalTracks"),
     hitsSrc = cms.InputTag("mtdRecHits"),
+    beamSpotSrc = cms.InputTag("offlineBeamSpot"),
     TrackTransformer = cms.PSet(
         DoPredictionsOnly = cms.bool(False),
         Fitter = cms.string('KFFitterForRefitInsideOut'),
