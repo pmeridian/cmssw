@@ -46,6 +46,7 @@
 
 #include "TrackingTools/PatternTools/interface/TSCBLBuilderWithPropagator.h"
 
+#include "RecoTracker/TransientTrackingRecHit/interface/Traj2TrackHits.h"
 #include "TrackingTools/TrackRefitter/interface/TrackTransformer.h"
 
 #include <sstream>
@@ -62,8 +63,7 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
  public:
   typedef typename TrackCollection:: value_type TrackType;
   typedef edm::View<TrackType> InputCollection;
-
-
+  
   TrackExtenderWithMTDT(const ParameterSet& pset); 
 
   void produce(edm::Event& ev, const edm::EventSetup& es) override final;
@@ -72,6 +72,7 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
 							     const MTDTrackingDetSetVector&,
 							     const MTDDetLayerGeometry*, 
 							     const MagneticField* field) const;
+
   TransientTrackingRecHit::ConstRecHitContainer tryETLLayers(const TrackType&,
 							     const MTDTrackingDetSetVector&,
 							     const MTDDetLayerGeometry*, 
@@ -94,7 +95,8 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
     return RefitDirection::undetermined;
   }
 
-  reco::Track buildTrack(const reco::Track&, const Trajectory&, const reco::BeamSpot&, const MagneticField* field) const;
+  reco::Track buildTrack(const reco::Track&, const Trajectory&, const reco::BeamSpot&, const MagneticField* field, bool hasMTD) const;
+  reco::TrackExtra buildTrackExtra(const Trajectory& trajectory) const;
 
   string dumpLayer(const DetLayer* layer) const;
 
@@ -102,6 +104,7 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
   edm::EDGetTokenT<InputCollection> tracksToken_;
   edm::EDGetTokenT<MTDTrackingDetSetVector> hitsToken_;
   edm::EDGetTokenT<reco::BeamSpot> bsToken_;
+  const bool updateTraj_, updateExtra_, updatePattern_;
   std::unique_ptr<MeasurementEstimator> theEstimator;
   std::unique_ptr<TrackTransformer> theTransformer;
   edm::ESHandle<TransientTrackBuilder> builder;
@@ -111,7 +114,10 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
 
 
 template<class TrackCollection>  
-TrackExtenderWithMTDT<TrackCollection>::TrackExtenderWithMTDT(const ParameterSet& iConfig) {
+TrackExtenderWithMTDT<TrackCollection>::TrackExtenderWithMTDT(const ParameterSet& iConfig) :
+  updateTraj_(iConfig.getParameter<bool>("updateTrackTrajectory")),
+  updateExtra_(iConfig.getParameter<bool>("updateTrackExtra")),
+  updatePattern_(iConfig.getParameter<bool>("updateTrackHitPattern")) {
   float theMaxChi2=25.;
   float theNSigma=3.;
   theEstimator = std::make_unique<Chi2MeasurementEstimator>(theMaxChi2,theNSigma);
@@ -122,6 +128,8 @@ TrackExtenderWithMTDT<TrackCollection>::TrackExtenderWithMTDT(const ParameterSet
   hitsToken_ = consumes<MTDTrackingDetSetVector>(iConfig.getParameter<edm::InputTag>("hitsSrc"));
   bsToken_ = consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamSpotSrc"));
 
+  produces<edm::OwnVector<TrackingRecHit>>();
+  produces<reco::TrackExtraCollection>();
   produces<TrackCollection>();
 }
 
@@ -129,8 +137,13 @@ template<class TrackCollection>
 void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
 						      const edm::EventSetup& es ) {
   
+  //this produces pieces of the track extra
+  Traj2TrackHits t2t;
+
   theTransformer->setServices(es);
 
+  TrackingRecHitRefProd hitsRefProd = ev.getRefBeforePut<TrackingRecHitCollection>();
+  reco::TrackExtraRefProd extrasRefProd = ev.getRefBeforePut<reco::TrackExtraCollection>();
   
   es.get<GlobalTrackingGeometryRecord>().get(gtg);
 
@@ -144,9 +157,15 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
 
   es.get<TransientRecHitRecord>().get("MTDRecHitBuilder",hitbuilder);
 
+  edm::ESHandle<TrackerTopology> httopo;
+  es.get<TrackerTopologyRcd>().get(httopo);
+  const TrackerTopology& ttopo = *httopo;
+
   // Some printouts
 
-  auto output = std::make_unique<TrackCollection>();
+  auto output  = std::make_unique<TrackCollection>();
+  auto extras  = std::make_unique<reco::TrackExtraCollection>();
+  auto outhits = std::make_unique<edm::OwnVector<TrackingRecHit>>();
 
   cout << "*** allBTLLayers(): " << geo->allBTLLayers().size() << endl;
   for (auto dl = geo->allBTLLayers().begin();
@@ -197,6 +216,8 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
     for( auto& ahit : tryBTLLayers(track,hits,geo.product(),magfield.product()) ) {
       mtdthits.push_back(ahit);
     }
+    // in the future this should include an intermediate refit before propagating to the ETL
+    // for now it is ok
     for( auto& ahit : tryETLLayers(track,hits,geo.product(),magfield.product()) ) {
       mtdthits.push_back(ahit);
     }
@@ -219,9 +240,30 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
     for( const auto& trj : trajwithmtd ) {
       std::cout << "mtd track chi2: " << trj.chiSquared() 
 		<< " ndof: " << trj.ndof() << std::endl;
-      reco::Track result = buildTrack(track, trj, bs, magfield.product());
+      const auto& thetrj = (updateTraj_ ? trj : trajs.front());
+      reco::Track result = buildTrack(track, thetrj, bs, magfield.product(), !mtdthits.empty());
       if( result.ndof() > 0 ) {
+	/// setup the track extras
+	reco::TrackExtra::TrajParams trajParams;
+	reco::TrackExtra::Chi2sFive chi2s; 
+	size_t hitsstart = outhits->size();
+	if( updatePattern_ ) {
+	  t2t(trj,*outhits,trajParams,chi2s); // this fills the output hit collection
+	} else {
+	  t2t(thetrj,*outhits,trajParams,chi2s);
+	}
+	size_t hitsend = outhits->size();
+	extras->push_back(buildTrackExtra(trj : thetrj));
+	extras->back().setHits(hitsRefProd,hitsstart,hitsend);	
+	extras->back().setTrajParams(trajParams,chi2s);
+	//create the track
 	output->push_back(result);
+	auto& backtrack = output->back();
+	reco::TrackExtraRef extraRef(extrasRefProd,extras->size()-1);
+	backtrack.setExtra( (updateExtra_ ? extraRef : track.extra()) );
+	for(unsigned ihit = hitsstart; ihit < hitsend; ++ihit) {
+	  backtrack.appendHitPattern((*outhits)[ihit],ttopo);
+	}
 	std::cout << "input track: " 
 		  << track.pt() << ' ' << track.eta() << ' ' << track.phi() << ' '
 		  << track.chi2() << ' ' << track.ndof() << ' ' << track.dxy() << ' '
@@ -234,9 +276,11 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
     }
   }
 
-  std::cout << "from " << tracks.size() << " input tracks got " << output->size() << " tracks with MTD!" << std::endl;
+  std::cout << "from " << tracks.size() << " input tracks --->>> got " << output->size() << " tracks with MTD!" << std::endl;
 
   ev.put(std::move(output));
+  ev.put(std::move(extras));
+  ev.put(std::move(outhits));
 }
 
 template<class TrackCollection>
@@ -441,7 +485,8 @@ template<class TrackCollection>
 reco::Track TrackExtenderWithMTDT<TrackCollection>::buildTrack(const reco::Track& orig,
 							       const Trajectory& traj,
 							       const reco::BeamSpot& bs,
-							       const MagneticField* field) const {  
+							       const MagneticField* field,
+							       bool hasMTD) const {  
   // get the state closest to the beamline
   TrajectoryStateOnSurface stateForProjectionToBeamLineOnSurface = 
     traj.closestMeasurement(GlobalPoint(bs.x0(),bs.y0(),bs.z0())).updatedState();
@@ -473,7 +518,77 @@ reco::Track TrackExtenderWithMTDT<TrackCollection>::buildTrack(const reco::Track
 		     int(ndof),//FIXME fix weight() in TrackingRecHit
 		     pos, mom, tscbl.trackStateAtPCA().charge(), 
 		     tscbl.trackStateAtPCA().curvilinearError(),
-		     orig.algo());
+		     orig.algo(),reco::TrackBase::undefQuality,0,0,hasMTD ? 1.0 : -1.0,hasMTD ? 1.0 : -1.0);
+}
+
+template<class TrackCollection>
+reco::TrackExtra TrackExtenderWithMTDT<TrackCollection>::buildTrackExtra(const Trajectory& trajectory) const {
+
+  const string metname = "MTD|RecoMTD|TrackExtenderWithMTD";
+
+  const Trajectory::RecHitContainer transRecHits = trajectory.recHits();
+  
+  // put the collection of TrackingRecHit in the event
+  
+  // sets the outermost and innermost TSOSs
+  // FIXME: check it!
+  TrajectoryStateOnSurface outerTSOS;
+  TrajectoryStateOnSurface innerTSOS;
+  unsigned int innerId=0, outerId=0;
+  TrajectoryMeasurement::ConstRecHitPointer outerRecHit;
+  DetId outerDetId;
+
+  if (trajectory.direction() == alongMomentum) {
+    LogTrace(metname)<<"alongMomentum";
+    outerTSOS = trajectory.lastMeasurement().updatedState();
+    innerTSOS = trajectory.firstMeasurement().updatedState();
+    outerId = trajectory.lastMeasurement().recHit()->geographicalId().rawId();
+    innerId = trajectory.firstMeasurement().recHit()->geographicalId().rawId();
+    outerRecHit =  trajectory.lastMeasurement().recHit();
+    outerDetId =   trajectory.lastMeasurement().recHit()->geographicalId();
+  } 
+  else if (trajectory.direction() == oppositeToMomentum) {
+    LogTrace(metname)<<"oppositeToMomentum";
+    outerTSOS = trajectory.firstMeasurement().updatedState();
+    innerTSOS = trajectory.lastMeasurement().updatedState();
+    outerId = trajectory.firstMeasurement().recHit()->geographicalId().rawId();
+    innerId = trajectory.lastMeasurement().recHit()->geographicalId().rawId();
+    outerRecHit =  trajectory.firstMeasurement().recHit();
+    outerDetId =   trajectory.firstMeasurement().recHit()->geographicalId();
+  }
+  else LogError(metname)<<"Wrong propagation direction!";
+  
+  const GeomDet *outerDet = gtg->idToDet(outerDetId);
+  GlobalPoint outerTSOSPos = outerTSOS.globalParameters().position();
+  bool inside = outerDet->surface().bounds().inside(outerDet->toLocal(outerTSOSPos));
+
+  
+  GlobalPoint hitPos = (outerRecHit->isValid()) ? outerRecHit->globalPosition() :  outerTSOS.globalParameters().position() ;
+  
+  if(!inside) {
+    LogTrace(metname)<<"The Global Muon outerMostMeasurementState is not compatible with the recHit detector! Setting outerMost postition to recHit position if recHit isValid: " << outerRecHit->isValid();
+    LogTrace(metname)<<"From " << outerTSOSPos << " to " <<  hitPos;
+  }
+  
+  
+  //build the TrackExtra
+  GlobalPoint v = (inside) ? outerTSOSPos : hitPos ;
+  GlobalVector p = outerTSOS.globalParameters().momentum();
+  math::XYZPoint  outpos( v.x(), v.y(), v.z() );   
+  math::XYZVector outmom( p.x(), p.y(), p.z() );
+  
+  v = innerTSOS.globalParameters().position();
+  p = innerTSOS.globalParameters().momentum();
+  math::XYZPoint  inpos( v.x(), v.y(), v.z() );   
+  math::XYZVector inmom( p.x(), p.y(), p.z() );
+
+  reco::TrackExtra trackExtra(outpos, outmom, true, inpos, inmom, true,
+                              outerTSOS.curvilinearError(), outerId,
+                              innerTSOS.curvilinearError(), innerId,
+			      trajectory.direction(),trajectory.seedRef());
+  
+  return trackExtra;
+ 
 }
 
 template<class TrackCollection>
