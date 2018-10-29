@@ -253,7 +253,7 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
 	  t2t(thetrj,*outhits,trajParams,chi2s);
 	}
 	size_t hitsend = outhits->size();
-	extras->push_back(buildTrackExtra(trj : thetrj));
+	extras->push_back(buildTrackExtra(trj)); // always push back the fully built extra, update by setting in track
 	extras->back().setHits(hitsRefProd,hitsstart,hitsend);	
 	extras->back().setTrajParams(trajParams,chi2s);
 	//create the track
