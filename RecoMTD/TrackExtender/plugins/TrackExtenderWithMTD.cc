@@ -160,34 +160,11 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
   edm::ESHandle<TrackerTopology> httopo;
   es.get<TrackerTopologyRcd>().get(httopo);
   const TrackerTopology& ttopo = *httopo;
-
-  // Some printouts
-
+  
   auto output  = std::make_unique<TrackCollection>();
   auto extras  = std::make_unique<reco::TrackExtraCollection>();
   auto outhits = std::make_unique<edm::OwnVector<TrackingRecHit>>();
-
-  cout << "*** allBTLLayers(): " << geo->allBTLLayers().size() << endl;
-  for (auto dl = geo->allBTLLayers().begin();
-       dl != geo->allBTLLayers().end(); ++dl) {
-    cout << "  " << (int) (dl-geo->allBTLLayers().begin()) << " " << dumpLayer(*dl);
-  }
-  cout << endl << endl;
   
-  cout << "*** allETLLayers(): " << geo->allETLLayers().size() << endl;
-  for (auto dl = geo->allETLLayers().begin();
-       dl != geo->allETLLayers().end(); ++dl) {
-    cout << "  " << (int) (dl-geo->allETLLayers().begin()) << " " << dumpLayer(*dl);
-  }
-  cout << endl << endl;
-  
-  cout << "*** allLayers(): " << geo->allLayers().size() << endl;
-  for (auto dl = geo->allLayers().begin();
-       dl != geo->allLayers().end(); ++dl) {
-    cout << "  " << (int) (dl-geo->allLayers().begin()) << " " << dumpLayer(*dl);
-  }
-  cout << endl << endl;
-
   edm::Handle<InputCollection> tracksH;  
   ev.getByToken(tracksToken_,tracksH);
   const auto& tracks = *tracksH;
@@ -201,16 +178,9 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
   const auto& bs = *bsH;
 
   for( const auto& track : tracks ) {  
-    std::cout << "NEW TRACK" << std::endl;
     reco::TransientTrack ttrack(track,magfield.product(),gtg);
     auto trajs = theTransformer->transform(track);
     auto thits = theTransformer->getTransientRecHits(ttrack);
-
-    std::cout << "track resulted in " << trajs.size() << " trajectories and " << thits.size() << " hits!" << std::endl;
-    for( const auto& trj : trajs ) {
-      std::cout << "original track chi2: " << trj.chiSquared() 
-		<< " ndof: " << trj.ndof() << std::endl;
-    }
 
     TransientTrackingRecHit::ConstRecHitContainer mtdthits;
     for( auto& ahit : tryBTLLayers(track,hits,geo.product(),magfield.product()) ) {
@@ -221,25 +191,17 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
     for( auto& ahit : tryETLLayers(track,hits,geo.product(),magfield.product()) ) {
       mtdthits.push_back(ahit);
     }
-
-    std::cout << "got " << mtdthits.size() << " new transient hits" << std::endl;
     
     auto ordering = checkRecHitsOrdering(thits);
     if( ordering == RefitDirection::insideOut) {
-      std::cout << "fit is inside-out" << std::endl;
-      for( auto& ahit : mtdthits ) thits.push_back(ahit);    
+          for( auto& ahit : mtdthits ) thits.push_back(ahit);    
     } else {
-      std::cout << "fit is outside-in" << std::endl;
-      std::reverse(mtdthits.begin(),mtdthits.end());
+          std::reverse(mtdthits.begin(),mtdthits.end());
       for( auto& ahit : thits ) mtdthits.push_back(ahit);
       thits.swap(mtdthits);
     }
-    std::cout << "refitting the track with " << thits.size() << " MTD rechits included" << std::endl;
     auto trajwithmtd = theTransformer->transform(ttrack,thits);
-    std::cout << "refitting resulted in " << trajwithmtd.size() << " trajectories!" << std::endl;
     for( const auto& trj : trajwithmtd ) {
-      std::cout << "mtd track chi2: " << trj.chiSquared() 
-		<< " ndof: " << trj.ndof() << std::endl;
       const auto& thetrj = (updateTraj_ ? trj : trajs.front());
       reco::Track result = buildTrack(track, thetrj, bs, magfield.product(), !mtdthits.empty());
       if( result.ndof() > 0 ) {
@@ -264,19 +226,9 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
 	for(unsigned ihit = hitsstart; ihit < hitsend; ++ihit) {
 	  backtrack.appendHitPattern((*outhits)[ihit],ttopo);
 	}
-	std::cout << "input track: " 
-		  << track.pt() << ' ' << track.eta() << ' ' << track.phi() << ' '
-		  << track.chi2() << ' ' << track.ndof() << ' ' << track.dxy() << ' '
-		  << track.dz() << std::endl;
-	std::cout << "added track: " 
-		  << result.pt() << ' ' << result.eta() << ' ' << result.phi() << ' '
-		  << result.chi2() << ' ' << result.ndof() << ' ' << result.dxy() << ' '
-		  << result.dz() << std::endl;
       }
     }
   }
-
-  std::cout << "from " << tracks.size() << " input tracks --->>> got " << output->size() << " tracks with MTD!" << std::endl;
 
   ev.put(std::move(output));
   ev.put(std::move(extras));
@@ -301,58 +253,21 @@ TrackExtenderWithMTDT<TrackCollection>::tryBTLLayers(const TrackType& track,
     
     // get the outermost trajectory point on the track    
     TrajectoryStateOnSurface tsos = tTrack.outermostMeasurementState();
-    cout << "testBTLLayers: at " << tsos.globalPosition()
-	 << " R=" << tsos.globalPosition().perp()
-	 << " phi=" << tsos.globalPosition().phi()
-	 << " Z=" << tsos.globalPosition().z()
-	 << " p = " << tsos.globalMomentum()
-	 << endl;
-    
     PropagatorWithMaterial prop(anyDirection,0.13957018,field,1.6,false,0.1,true);
 
     pair<bool, TrajectoryStateOnSurface> comp = layer->compatible(tsos,prop,*theEstimator);
     if( comp.first ) {
-      cout << "is compatible: " << comp.first
-	   << " at: R=" << comp.second.globalPosition().perp()
-	   << " phi=" << comp.second.globalPosition().phi()
-	   << " Z=" <<  comp.second.globalPosition().z()
-	   << endl;
-
-    
+      
       vector<DetLayer::DetWithState> compDets = layer->compatibleDets(tsos,prop,*theEstimator);
       if (compDets.size()) {
 	for( const auto& detWithState : compDets ) {
 	  
-	  auto prop_pos = detWithState.second.globalPosition();
-	  auto local_pos = detWithState.first->toLocal(prop_pos);
-	  auto meas_point = detWithState.first->topology().measurementPosition(local_pos);
-	  auto pixel = static_cast<const PixelTopology&>(detWithState.first->topology()).pixel(local_pos);
-	  auto theChannel =  detWithState.first->topology().channel(local_pos);
-	  auto pixFromCh = MTDChannelIdentifier::channelToPixel(theChannel);
-	  LocalError err = detWithState.second.localError().positionError();
-	  
-	  cout << "compatibleDets: " << compDets.size() << endl
-	       << "  final state pos: " << prop_pos << endl 
-	       << "  local state pos: " << local_pos << ' ' << std::sqrt(err.xx()) << ' ' << std::sqrt(err.yy()) << endl
-	       << "  measurement pos: " << meas_point << endl
-	       << " pixel : (" << pixel.first << ',' << pixel.second << ')' << endl
-	       << "       : (" << pixFromCh.first << ',' << pixFromCh.second << ')' << endl
-	       << "  channel : " << theChannel << endl
-	       << "  det         pos: " << detWithState.first->position()
-	       << " id: " << std::hex << BTLDetId(detWithState.first->geographicalId().rawId()).rawId() << std::dec<< endl 
-	       << "  distance " << (tsos.globalPosition()-detWithState.first->position()).mag()
-	       << endl
-	       << endl; 
-
 	  auto range = hits.equal_range(detWithState.first->geographicalId(),cmp);	  
 	  for( auto detitr = range.first; detitr != range.second; ++detitr ) {
-	    std::cout << "\tdet with hits: " << std::distance(range.first,detitr) << ' ' << detitr->size() << std::endl;
 	    auto best = detitr->end();
 	    double best_chi2 = std::numeric_limits<double>::max();
 	    for( auto itr = detitr->begin(); itr != detitr->end(); ++itr ) {
 	      auto est =  theEstimator->estimate(detWithState.second,*itr);
-	      std::cout << itr->localPosition() << ' ' << itr->localPositionError() << ' ' 
-			<< est.first << ' ' << est.second << ' ' << track.chi2() << ' ' << track.ndof() << std::endl;
 	      if( est.first && est.second < best_chi2 ) { // just take the best chi2
 		best = itr;
 		best_chi2 = est.second;
@@ -364,9 +279,7 @@ TrackExtenderWithMTDT<TrackCollection>::tryBTLLayers(const TrackType& track,
 	  }	  	  
 	}     
 	
-      } else {
-	cout << " ERROR : no compatible BTL det found" << endl;
-      }    
+      }
     }
   }
   return output;
@@ -392,62 +305,24 @@ TrackExtenderWithMTDT<TrackCollection>::tryETLLayers(const TrackType& track,
 
     // get the outermost trajectory point on the track    
     TrajectoryStateOnSurface tsos = tTrack.outermostMeasurementState();
-    cout << "testETLLayers: at " << tsos.globalPosition()
-	 << " R=" << tsos.globalPosition().perp()
-	 << " phi=" << tsos.globalPosition().phi()
-	 << " Z=" << tsos.globalPosition().z()
-	 << " p = " << tsos.globalMomentum()
-	 << endl;
-
     if( tsos.globalPosition().z() * diskZ < 0 ) continue; // only propagate to the disk that's on the same side
 
     PropagatorWithMaterial prop(anyDirection,0.13957018,field,1.6,false,0.1,true);
 
     pair<bool, TrajectoryStateOnSurface> comp = layer->compatible(tsos,prop,*theEstimator);
     if( comp.first ) {
-      cout << "is compatible: " << comp.first
-	   << " at: R=" << comp.second.globalPosition().perp()
-	   << " phi=" << comp.second.globalPosition().phi()
-	   << " Z=" <<  comp.second.globalPosition().z()
-	   << endl;
-      auto gp = comp.second.globalPosition();
-            
       // if we're compatible with the disc, try to find modules
 
       vector<DetLayer::DetWithState> compDets = layer->compatibleDets(tsos,prop,*theEstimator);
       const bool hasDets = compDets.size();
       if( hasDets ) {
 	for( const auto& detWithState : compDets ) {
-	  auto prop_pos = detWithState.second.globalPosition();
-	  auto local_pos = detWithState.first->toLocal(prop_pos);
-	  auto meas_point = detWithState.first->topology().measurementPosition(local_pos);
-	  auto pixel = static_cast<const PixelTopology&>(detWithState.first->topology()).pixel(local_pos);
-	  auto theChannel =  detWithState.first->topology().channel(local_pos);
-	  auto pixFromCh = MTDChannelIdentifier::channelToPixel(theChannel);
-	  LocalError err = detWithState.second.localError().positionError();
-	  
-	  cout << "compatibleDets: " << compDets.size() << endl
-	       << "  final state pos: " << prop_pos << endl 
-	       << "  local state pos: " <<  local_pos << ' ' << std::sqrt(err.xx()) << ' ' << std::sqrt(err.yy()) << endl
-	       << "  measurement pos: " << meas_point << endl
-	       << "  channel: " << theChannel << endl
-	       << " pixel : (" << pixel.first << ',' << pixel.second << ')' << endl
-	       << "       : (" << pixFromCh.first << ',' << pixFromCh.second << ')' << endl
-	       << "  det         pos: " << detWithState.first->position()
-	       << " id: " << std::hex << ETLDetId(detWithState.first->geographicalId().rawId()).rawId() << std::dec << endl 
-	       << "  distance " << (tsos.globalPosition()-detWithState.first->position()).mag()
-	       << endl
-	       << endl;
-	  
 	  auto range = hits.equal_range(detWithState.first->geographicalId(),cmp);	  
 	  for( auto detitr = range.first; detitr != range.second; ++detitr ) {
-	    std::cout << "\tdet with hits: " << std::distance(range.first,detitr) << ' ' << detitr->size() << std::endl;
 	    auto best = detitr->end();
 	    double best_chi2 = std::numeric_limits<double>::max();
 	    for( auto itr = detitr->begin(); itr != detitr->end(); ++itr ) {
 	      auto est =  theEstimator->estimate(detWithState.second,*itr);
-	      std::cout << itr->localPosition() << ' ' << itr->localPositionError() << ' ' 
-			<< est.first << ' ' << est.second << ' ' << track.chi2() << ' ' << track.ndof() << std::endl;
 	      if( est.first && est.second < best_chi2 ) { // just take the best chi2
 		best = itr;
 		best_chi2 = est.second;
@@ -459,19 +334,6 @@ TrackExtenderWithMTDT<TrackCollection>::tryETLLayers(const TrackType& track,
 	  }
 	  
 	}
-      } else {
-	if(layer->isCrack(gp))
-	  {
-	    cout << " CSC crack found " << std::endl;
-	  }
-	else
-	  {
-	    cout << " ERROR : no compatible det found in ETL"
-		 << " at: R=" << gp.perp()
-		 << " phi= " << gp.phi().degrees()
-		 << " Z= " << gp.z() << std::endl;
-	  }
-
       }
     }
   }
