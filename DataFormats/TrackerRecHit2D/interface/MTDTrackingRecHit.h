@@ -20,10 +20,10 @@ class MTDTrackingRecHit : public TrackerSingleRecHit {
         MTDTrackingRecHit* clone() const override { return new MTDTrackingRecHit(*this); }
 	
 	// things to specialize from BaseTrackerRecHit
-	bool isPhase2() const override final { return true; }
-	void getKfComponents(KfComponentsHolder& holder) const override final;
+	bool isPhase2() const final { return true; }
+	void getKfComponents(KfComponentsHolder& holder) const final;
 		
-	int dimension() const override final { return 2; }
+	int dimension() const final { return 2; }
 	
 	//specific timing stuff
         float energy() const { return omniCluster().mtdCluster().energy(); }

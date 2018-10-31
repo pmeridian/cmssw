@@ -66,7 +66,7 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
   
   TrackExtenderWithMTDT(const ParameterSet& pset); 
 
-  void produce(edm::Event& ev, const edm::EventSetup& es) override final;
+  void produce(edm::Event& ev, const edm::EventSetup& es) final;
 
   TransientTrackingRecHit::ConstRecHitContainer tryBTLLayers(const TrackType&, 
 							     const MTDTrackingDetSetVector&,
@@ -259,7 +259,7 @@ TrackExtenderWithMTDT<TrackCollection>::tryBTLLayers(const TrackType& track,
     if( comp.first ) {
       
       vector<DetLayer::DetWithState> compDets = layer->compatibleDets(tsos,prop,*theEstimator);
-      if (compDets.size()) {
+      if (!compDets.empty()) {
 	for( const auto& detWithState : compDets ) {
 	  
 	  auto range = hits.equal_range(detWithState.first->geographicalId(),cmp);	  
@@ -314,7 +314,7 @@ TrackExtenderWithMTDT<TrackCollection>::tryETLLayers(const TrackType& track,
       // if we're compatible with the disc, try to find modules
 
       vector<DetLayer::DetWithState> compDets = layer->compatibleDets(tsos,prop,*theEstimator);
-      const bool hasDets = compDets.size();
+      const bool hasDets = !compDets.empty();
       if( hasDets ) {
 	for( const auto& detWithState : compDets ) {
 	  auto range = hits.equal_range(detWithState.first->geographicalId(),cmp);	  
@@ -457,9 +457,9 @@ template<class TrackCollection>
 string TrackExtenderWithMTDT<TrackCollection>::dumpLayer(const DetLayer* layer) const {
   stringstream output;
   
-  const BoundSurface* sur=0;
-  const BoundCylinder* bc=0;
-  const BoundDisk* bd=0;
+  const BoundSurface* sur=nullptr;
+  const BoundCylinder* bc=nullptr;
+  const BoundDisk* bd=nullptr;
 
   sur = &(layer->surface());
   if ( (bc = dynamic_cast<const BoundCylinder*>(sur)) ) {
