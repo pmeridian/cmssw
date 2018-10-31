@@ -151,7 +151,7 @@ void BTLElectronicsSim::runTrivialShaper(BTLDataFrame &dataFrame,
   //set new ADCs 
   for(int it=0; it<(int)(chargeColl.size()); it++) {
     BTLSample newSample;
-    newSample.set(0,0,0,0,0,row,col);    
+    newSample.set(false,false,0,0,0,row,col);    
     
     if ( chargeColl[it] != 0. ) { 
 
