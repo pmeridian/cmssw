@@ -891,6 +891,10 @@ timingDict = {
             'from Geometry.MTDNumberingBuilder.mtdTopology_cfi import *',
             'from Geometry.MTDGeometryBuilder.mtdGeometry_cfi import *',
             'from Geometry.MTDGeometryBuilder.idealForDigiMTDGeometry_cff import *',
+            'mtdParameters.vitems[0].subdetPars[8] = 16 #bar geometry',
+            'mtdParameters.vitems[0].subdetPars[9] = 1  #bar geometry',
+            'mtdParameters.vitems[0].subdetPars[10] = 4 #bar geometry',
+            'mtdParameters.vitems[0].subdetPars[11] = 1 #bar geometry',
             'mtdGeometry.applyAlignment = cms.bool(False)'
         ],
         "era" : "phase2_timing, phase2_timing_layer_bar",
@@ -919,6 +923,10 @@ timingDict = {
             'from Geometry.MTDNumberingBuilder.mtdTopology_cfi import *',
             'from Geometry.MTDGeometryBuilder.mtdGeometry_cfi import *',
             'from Geometry.MTDGeometryBuilder.idealForDigiMTDGeometry_cff import *',
+            'mtdParameters.vitems[0].subdetPars[8] = 16 #bar geometry',
+            'mtdParameters.vitems[0].subdetPars[9] = 1  #bar geometry',
+            'mtdParameters.vitems[0].subdetPars[10] = 4 #bar geometry',
+            'mtdParameters.vitems[0].subdetPars[11] = 1 #bar geometry',
             'mtdGeometry.applyAlignment = cms.bool(False)'
         ],
         "era" : "phase2_timing, phase2_timing_layer_bar",
