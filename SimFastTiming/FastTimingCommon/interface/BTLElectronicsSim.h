@@ -41,7 +41,7 @@ class BTLElectronicsSim {
   void updateOutput(BTLDigiCollection &coll,
 		    const BTLDataFrame& rawDataFrame) const;
 
-  static constexpr int dfSIZE = 5;
+  static constexpr int dfSIZE = 2;
 
 
  private:
@@ -51,6 +51,7 @@ class BTLElectronicsSim {
   const bool debug_;
 
   const float bxTime_;
+  const float testBeamMIPTimeRes_;
   const float ScintillatorRiseTime_;
   const float ScintillatorDecayTime_;
   const float ChannelTimeOffset_;

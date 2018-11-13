@@ -1,4 +1,4 @@
-#include "SimFastTiming/FastTimingCommon/interface/BTLDeviceSim.h"
+#include "SimFastTiming/FastTimingCommon/interface/BTLTileDeviceSim.h"
 #include "DataFormats/DetId/interface/DetId.h"
 #include "DataFormats/ForwardDetId/interface/MTDDetId.h"
 #include "DataFormats/ForwardDetId/interface/BTLDetId.h"
@@ -10,7 +10,7 @@
 
 #include "CLHEP/Random/RandGaussQ.h"
 
-BTLDeviceSim::BTLDeviceSim(const edm::ParameterSet& pset) : 
+BTLTileDeviceSim::BTLTileDeviceSim(const edm::ParameterSet& pset) : 
   bxTime_(pset.getParameter<double>("bxTime") ),
   LightYield_(pset.getParameter<double>("LightYield")),
   LightCollEff_(pset.getParameter<double>("LightCollectionEff")),
@@ -18,7 +18,7 @@ BTLDeviceSim::BTLDeviceSim(const edm::ParameterSet& pset) :
   smearLightCollTime_(pset.getParameter<double>("smearLightCollectionTime")),
   PDE_(pset.getParameter<double>("PhotonDetectionEff")) { }
 
-void BTLDeviceSim::getEventSetup(const edm::EventSetup& evs) {
+void BTLTileDeviceSim::getEventSetup(const edm::EventSetup& evs) {
   edm::ESHandle<MTDGeometry> geom;
   if( geomwatcher_.check(evs) || geom_ == nullptr ) {
     evs.get<MTDDigiGeometryRecord>().get(geom);
@@ -26,10 +26,10 @@ void BTLDeviceSim::getEventSetup(const edm::EventSetup& evs) {
   }
 }
 
-void BTLDeviceSim::getHitsResponse(const std::vector<std::tuple<int,uint32_t,float> > &hitRefs, 
-				   const edm::Handle<edm::PSimHitContainer> &hits,
-				   mtd_digitizer::MTDSimHitDataAccumulator *simHitAccumulator,
-				   CLHEP::HepRandomEngine *hre){
+void BTLTileDeviceSim::getHitsResponse(const std::vector<std::tuple<int,uint32_t,float> > &hitRefs, 
+				       const edm::Handle<edm::PSimHitContainer> &hits,
+				       mtd_digitizer::MTDSimHitDataAccumulator *simHitAccumulator,
+				       CLHEP::HepRandomEngine *hre){
 
   //loop over sorted simHits
   const int nchits = hitRefs.size();
@@ -44,34 +44,36 @@ void BTLDeviceSim::getHitsResponse(const std::vector<std::tuple<int,uint32_t,flo
     if ( detId.det()!=DetId::Forward || detId.mtdSubDetector()!=1 ) continue;
 
     if(id==0) continue; // to be ignored at RECO level                                                              
+
     BTLDetId btlid(detId) ;
     DetId geoId = BTLDetId(btlid.mtdSide(),btlid.mtdRR(),btlid.module()+18*(btlid.modType()-1),0,1);
     const MTDGeomDet* thedet = geom_->idToDet(geoId);
-
+    
     if( thedet == nullptr ) {
-      throw cms::Exception("BTLDeviceSim") << "GeographicalID: " << std::hex
-                                           << geoId.rawId()
-                                           << " (" << detId.rawId()<< ") is invalid!" << std::dec
-                                           << std::endl;
+      throw cms::Exception("BTLTileDeviceSim") << "GeographicalID: " << std::hex
+					       << geoId.rawId()
+					       << " (" << detId.rawId()<< ") is invalid!" << std::dec
+					       << std::endl;
     }
     const ProxyMTDTopology& topoproxy = static_cast<const ProxyMTDTopology&>(thedet->topology());
     const RectangularMTDTopology& topo = static_cast<const RectangularMTDTopology&>(topoproxy.specificTopology());    
-    // calculate the simhit row and column                                                                           
+    // calculate the simhit row and column                                  
     const auto& pentry = hit.entryPoint();
     Local3DPoint simscaled(0.1*pentry.x(),0.1*pentry.y(),0.1*pentry.z()); // mm -> cm here is the switch
     // translate from crystal-local coordinates to module-local coordinates to get the row and column
     simscaled = topo.pixelToModuleLocalPoint(simscaled,btlid.row(topo.nrows()),btlid.column(topo.nrows()));
-    const auto& thepixel = topo.pixel(simscaled); 
+    const auto& thepixel = topo.pixel(simscaled);
     uint8_t row(thepixel.first), col(thepixel.second);
-            
+
     if( btlid.row(topo.nrows()) != row || btlid.column(topo.nrows()) != col ) {
-      edm::LogWarning("BTLDeviceSim") 
+      edm::LogWarning("BTLTileDeviceSim")
 	<< "BTLDetId (row,column): (" << btlid.row(topo.nrows()) << ',' << btlid.column(topo.nrows()) <<") is not equal to "
 	<< "topology (row,column): (" << uint32_t(row) << ',' << uint32_t(col) <<"), overriding to detid";
       row = btlid.row(topo.nrows());
       col = btlid.column(topo.nrows());	
     }
-        
+
+
     // --- Store the detector element ID as a key of the MTDSimHitDataAccumulator map
     auto simHitIt = simHitAccumulator->emplace(mtd_digitizer::MTDCellId(id,row,col),
 					       mtd_digitizer::MTDCellInfo()).first;
@@ -85,21 +87,13 @@ void BTLDeviceSim::getHitsResponse(const std::vector<std::tuple<int,uint32_t,flo
     if ( smearLightCollTime_ > 0. )
       toa += CLHEP::RandGaussQ::shoot(hre, 0., smearLightCollTime_);
 
-    // --- Accumulate in 15 buckets of 25 ns (9 pre-samples, 1 in-time, 5 post-samples)
-    const int itime = std::floor( toa/bxTime_ ) + 9;
-    if(itime<0 || itime>14) continue;     
+    // --- Accumulate the energy of simHits in the same crystal
+    if ( toa < bxTime_ )  // this is to simulate the charge integration in a 25 ns window
+      (simHitIt->second).hit_info[0][0] += Npe;
 
-    // --- Check if the time index is ok and accumulate the energy
-    if(itime >= (int)simHitIt->second.hit_info[0].size() ) continue;
-
-    (simHitIt->second).hit_info[0][itime] += Npe;
-
-    // --- Store the time of the first SimHit in the right DataFrame bucket
-    const float tof = toa - (itime-9)*bxTime_;
-
-    if( (simHitIt->second).hit_info[1][itime] == 0 ||
-	tof < (simHitIt->second).hit_info[1][itime] )
-      (simHitIt->second).hit_info[1][itime] = tof;
+    // --- Store the time of the first SimHit
+    if( (simHitIt->second).hit_info[1][0] == 0 )
+      (simHitIt->second).hit_info[1][0] = toa;
 
   } // ihit loop
 
