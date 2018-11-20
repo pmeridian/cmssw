@@ -52,34 +52,30 @@ BTLUncalibRecHitAlgo::makeRecHit(const BTLDataFrame& dataFrame ) const {
   std::pair<float,float> amplitude(0.,0.);
   std::pair<float,float> time(0.,0.);
 
-  unsigned char flag = 0;
-
   const auto& sampleLeft  = dataFrame.sample(0);
   const auto& sampleRight = dataFrame.sample(1);
   
-  if ( sampleLeft.data() > 0 ) {
+  amplitude.first = float(sampleLeft.data()) * adcLSB_;
+  time.first      = float(sampleLeft.toa()) * toaLSBToNS_;
 
-    amplitude.first = float(sampleLeft.data()) * adcLSB_;
-    time.first      = float(sampleLeft.toa()) * toaLSBToNS_;
-
-    // Correct the time of the left SiPM for the time-walk
+  // Correct the time of the left SiPM for the time-walk
+  if ( amplitude.first > 0. )
     time.first -= timeCorr_p0_*pow(amplitude.first,timeCorr_p1_) + timeCorr_p2_;
-    flag |= 0x1;
 
-  }
 
   // --- If available, reconstruct the amplitude and time of the second SiPM
   if ( sampleRight.data() > 0 ) {
 
-    amplitude.second = sampleRight.data() * adcLSB_;
-    time.second      = sampleRight.toa() * toaLSBToNS_;
+    amplitude.second = float(sampleRight.data()) * adcLSB_;
+    time.second      = float(sampleRight.toa()) * toaLSBToNS_;
 
     // Correct the time of the right SiPM for the time-walk
     time.second -= timeCorr_p0_*pow(amplitude.second,timeCorr_p1_) + timeCorr_p2_;
-    flag |= (0x1 << 1);
 
   }
 
+  unsigned char flag = 0;
+  
   LogDebug("BTLUncalibRecHit") << "ADC+: set the charge to: (" << amplitude.first << ", "
 			       << amplitude.second << ")  ("
 			       << sampleLeft.data() << ", " << sampleRight.data()
