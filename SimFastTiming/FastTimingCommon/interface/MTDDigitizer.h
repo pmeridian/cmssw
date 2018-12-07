@@ -91,6 +91,9 @@ namespace mtd_digitizer {
     
   private :
 
+    edm::ESWatcher<MTDDigiGeometryRecord> geomwatcher_;   
+    const MTDGeometry* geom_;
+
     void resetSimHitDataAccumulator() {
       MTDSimHitDataAccumulator().swap(simHitAccumulator_);
     }
