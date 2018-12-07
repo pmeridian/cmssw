@@ -5,6 +5,8 @@ RecoLocalFastTimeFEVT = cms.PSet(
     outputCommands = cms.untracked.vstring(
         'keep *_ftlUncalibratedRecHits_*_*',
         'keep *_ftlRecHits_*_*',        
+        'keep *_mtdUncalibratedRecHits_*_*',
+        'keep *_mtdRecHits_*_*',
         )
 )
 #RECO content
