@@ -12,8 +12,6 @@
 #include "CLHEP/Random/RandGaussQ.h"
 
 BTLBarDeviceSim::BTLBarDeviceSim(const edm::ParameterSet& pset) : 
-  geom_(nullptr),
-  topo_(nullptr),
   bxTime_(pset.getParameter<double>("bxTime") ),
   LightYield_(pset.getParameter<double>("LightYield")),
   LightCollEff_(pset.getParameter<double>("LightCollectionEff")),
@@ -22,10 +20,8 @@ BTLBarDeviceSim::BTLBarDeviceSim(const edm::ParameterSet& pset) :
   PDE_(pset.getParameter<double>("PhotonDetectionEff")) { }
 
 void BTLBarDeviceSim::getEventSetup(const edm::EventSetup& evs) {
- 
   edm::ESHandle<MTDGeometry> geom;
-
-  if( geomwatcher_.check(evs) || geom_ == nullptr ) {
+  if( geom_ == nullptr ) {
     evs.get<MTDDigiGeometryRecord>().get(geom);
     geom_ = geom.product();
   }
@@ -94,13 +90,8 @@ void BTLBarDeviceSim::getHitsResponse(const std::vector<std::tuple<int,uint32_t,
     float Npe = 1000.*hit.energyLoss()*LightYield_*LightCollEff_*PDE_;
 
     // --- Get the simHit time of arrival
-<<<<<<< HEAD
-    float toa = std::get<2>(hitRefs[ihit]);
-    
-=======
     float toa = std::get<2>(hitRef);
 
->>>>>>> a3068b9239f... Addressed reviewers' comments. Merged with PR #25063 with #25384
     // --- Accumulate the energy of simHits in the same crystal
     if ( toa < bxTime_ ){  // this is to simulate the charge integration in a 25 ns window
       (simHitIt->second).hit_info[0][0] += Npe;
@@ -108,21 +99,13 @@ void BTLBarDeviceSim::getHitsResponse(const std::vector<std::tuple<int,uint32_t,
     }
 
     // --- Store the time of the first SimHit
-    if ( (simHitIt->second).hit_info[1][0] == 0 ){
+    if( (simHitIt->second).hit_info[1][0] == 0 ){
 
       // This is to account for the two possible bar orientations:
       double barLength = std::max(topo.pitch().first, topo.pitch().second);
 
-<<<<<<< HEAD
-      // This is for the layout with bars along phi
-      if ( topo_->getMTDTopologyMode() == (int ) BTLDetId::CrysLayout::bar ){
-	distR = 0.5*topo.pitch().first - 0.1*hit.localPosition().x();
-	distL = 0.5*topo.pitch().first + 0.1*hit.localPosition().x();
-      }
-=======
       double distR = 0.5*barLength - 0.1*hit.localPosition().y();
       double distL = 0.5*barLength + 0.1*hit.localPosition().y();
->>>>>>> a3068b9239f... Addressed reviewers' comments. Merged with PR #25063 with #25384
 
       (simHitIt->second).hit_info[1][0] = toa + LightCollSlopeR_*distR;
       (simHitIt->second).hit_info[1][1] = toa + LightCollSlopeL_*distL;
