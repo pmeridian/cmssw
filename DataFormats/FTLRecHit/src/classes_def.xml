@@ -61,5 +61,6 @@
   <class name="std::vector<edm::Ref<edmNew::DetSetVector<FTLCluster>,FTLCluster,edmNew::DetSetVector<FTLCluster>::FindForDetSetVector> >" />
   <class name="edmNew::DetSetVector<edm::Ref<edmNew::DetSetVector<FTLCluster>,FTLCluster,edmNew::DetSetVector<FTLCluster>::FindForDetSetVector> >" />
   <class name="edm::Wrapper<edmNew::DetSetVector<edm::Ref<edmNew::DetSetVector<FTLCluster>,FTLCluster,edmNew::DetSetVector<FTLCluster>::FindForDetSetVector> > >" />
+  
   <enum name="FTLSeverityLevel::SeverityLevel"/> 
 </lcgdict>
