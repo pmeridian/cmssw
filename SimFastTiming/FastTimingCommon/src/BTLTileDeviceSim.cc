@@ -20,11 +20,11 @@ BTLTileDeviceSim::BTLTileDeviceSim(const edm::ParameterSet& pset) :
   PDE_(pset.getParameter<double>("PhotonDetectionEff")) { }
 
 void BTLTileDeviceSim::getEventSetup(const edm::EventSetup& evs) {
-
   edm::ESHandle<MTDGeometry> geom;
-  evs.get<MTDDigiGeometryRecord>().get(geom);
-  geom_ = geom.product();
-
+  if ( geom_ == nullptr ) {
+    evs.get<MTDDigiGeometryRecord>().get(geom);
+    geom_ = geom.product();
+  }
 }
 
 void BTLTileDeviceSim::getHitsResponse(const std::vector<std::tuple<int,uint32_t,float> > &hitRefs, 
@@ -73,7 +73,8 @@ void BTLTileDeviceSim::getHitsResponse(const std::vector<std::tuple<int,uint32_t
       row = btlid.row(topo.nrows());
       col = btlid.column(topo.nrows());	
     }
-    
+
+
     // --- Store the detector element ID as a key of the MTDSimHitDataAccumulator map
     auto simHitIt = simHitAccumulator->emplace(mtd_digitizer::MTDCellId(id,row,col),
 					       mtd_digitizer::MTDCellInfo()).first;

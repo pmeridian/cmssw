@@ -14,11 +14,11 @@ ETLDeviceSim::ETLDeviceSim(const edm::ParameterSet& pset) :
   tofDelay_(pset.getParameter<double>("tofDelay") ) {}
 
 void ETLDeviceSim::getEventSetup(const edm::EventSetup& evs) {
-
   edm::ESHandle<MTDGeometry> geom;
-  evs.get<MTDDigiGeometryRecord>().get(geom);
-  geom_ = geom.product();
-
+  if ( geom_ == nullptr ) {
+    evs.get<MTDDigiGeometryRecord>().get(geom);
+    geom_ = geom.product();
+  }  
 }
 
 void ETLDeviceSim::getHitsResponse(const std::vector<std::tuple<int,uint32_t,float> > &hitRefs, 

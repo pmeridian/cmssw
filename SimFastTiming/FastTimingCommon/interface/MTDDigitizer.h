@@ -91,9 +91,6 @@ namespace mtd_digitizer {
     
   private :
 
-    edm::ESWatcher<MTDDigiGeometryRecord> geomwatcher_;   
-    const MTDGeometry* geom_;
-
     void resetSimHitDataAccumulator() {
       MTDSimHitDataAccumulator().swap(simHitAccumulator_);
     }
@@ -181,14 +178,13 @@ namespace mtd_digitizer {
 
   template<class Traits>
   void MTDDigitizer<Traits>::beginRun(const edm::EventSetup & es) {    
-
     edm::ESHandle<MTDGeometry> geom;
-    es.get<MTDDigiGeometryRecord>().get(geom);
-    geom_ = geom.product();
-
+    if( geom_ == nullptr ) {
+      es.get<MTDDigiGeometryRecord>().get(geom);
+      geom_ = geom.product();
+    }
     deviceSim_.getEventSetup(es);
     electronicsSim_.getEventSetup(es);
-
   }
 }
 

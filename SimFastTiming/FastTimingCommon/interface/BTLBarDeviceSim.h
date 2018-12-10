@@ -37,8 +37,6 @@ class BTLBarDeviceSim {
   
  private:
 
-  edm::ESWatcher<MTDDigiGeometryRecord> geomwatcher_;
-  edm::ESWatcher<MTDTopologyRcd> topowatcher_;
   const MTDGeometry* geom_;
   const MTDTopology* topo_;
 

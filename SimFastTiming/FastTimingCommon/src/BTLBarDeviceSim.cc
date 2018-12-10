@@ -12,6 +12,8 @@
 #include "CLHEP/Random/RandGaussQ.h"
 
 BTLBarDeviceSim::BTLBarDeviceSim(const edm::ParameterSet& pset) : 
+  geom_(nullptr),
+  topo_(nullptr),
   bxTime_(pset.getParameter<double>("bxTime") ),
   LightYield_(pset.getParameter<double>("LightYield")),
   LightCollEff_(pset.getParameter<double>("LightCollectionEff")),
