@@ -297,7 +297,7 @@ TrackExtenderWithMTDT<TrackCollection>::tryETLLayers(const TrackType& track,
 
   PropagatorWithMaterial prop(anyDirection,0.13957018,field,1.6,false,0.1,true);
 
-  for (const DetLayer*& ilay : layers) {
+  for (const DetLayer* ilay : layers) {
     const MTDRingForwardDoubleLayer* layer = (const MTDRingForwardDoubleLayer*) (ilay);
 
     const BoundDisk& disk = layer->specificSurface();
