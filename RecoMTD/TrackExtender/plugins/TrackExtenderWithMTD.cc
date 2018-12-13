@@ -57,6 +57,11 @@ using namespace std;
 using namespace edm;
 
 constexpr char pathLengthName[] = "pathLength";
+constexpr char pathLengthOrigTrkName[] = "generalTrackPathLength";
+constexpr char betaOrigTrkName[] = "generalTrackBeta";
+constexpr char t0OrigTrkName[] = "generalTrackt0";
+constexpr char covt0t0OrigTrkName[] = "generalTrackcovt0t0";
+
 
 template<class TrackCollection>
 class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {  
@@ -135,8 +140,10 @@ TrackExtenderWithMTDT<TrackCollection>::TrackExtenderWithMTDT(const ParameterSet
   hitsToken_ = consumes<MTDTrackingDetSetVector>(iConfig.getParameter<edm::InputTag>("hitsSrc"));
   bsToken_ = consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamSpotSrc"));
 
-
-
+  produces<edm::ValueMap<float> >(pathLengthOrigTrkName);
+  produces<edm::ValueMap<float> >(betaOrigTrkName);
+  produces<edm::ValueMap<float> >(t0OrigTrkName);
+  produces<edm::ValueMap<float> >(covt0t0OrigTrkName);
   produces<edm::ValueMap<float> >(pathLengthName);
   produces<edm::OwnVector<TrackingRecHit>>();
   produces<reco::TrackExtraCollection>();
@@ -175,8 +182,21 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
   auto output  = std::make_unique<TrackCollection>();
   auto extras  = std::make_unique<reco::TrackExtraCollection>();
   auto outhits = std::make_unique<edm::OwnVector<TrackingRecHit>>();
+
   auto pathLengths = std::make_unique<edm::ValueMap<float>>();
   std::vector<float> pathLengthsRaw;
+
+  auto pathLengthsOrigTrk = std::make_unique<edm::ValueMap<float>>();
+  std::vector<float> pathLengthsOrigTrkRaw;
+
+  auto betaOrigTrk = std::make_unique<edm::ValueMap<float>>();
+  std::vector<float> betaOrigTrkRaw;
+
+  auto t0OrigTrk = std::make_unique<edm::ValueMap<float>>();
+  std::vector<float> t0OrigTrkRaw;
+  
+  auto covt0t0OrigTrk = std::make_unique<edm::ValueMap<float>>();
+  std::vector<float> covt0t0OrigTrkRaw;
   
   edm::Handle<InputCollection> tracksH;  
   ev.getByToken(tracksToken_,tracksH);
@@ -190,6 +210,8 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
   ev.getByToken(bsToken_,bsH);
   const auto& bs = *bsH;
 
+  std::vector<unsigned> track_indices;
+  unsigned itrack = 0;
   for( const auto& track : tracks ) {  
     reco::TransientTrack ttrack(track,magfield.product(),gtg);
     auto trajs = theTransformer->transform(track);
@@ -214,11 +236,14 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
       thits.swap(mtdthits);
     }
     auto trajwithmtd = theTransformer->transform(ttrack,thits);
+    float pathLengthMap = -1.f, betaMap = 0.f, t0Map = 0.f, covt0t0Map = -1.f;
+    
     for( const auto& trj : trajwithmtd ) {
       
       const auto& thetrj = (updateTraj_ ? trj : trajs.front());
       float pathLength = 0.f;
-      reco::Track result = buildTrack(track, thetrj, trj, bs, magfield.product(), prop.product(), !mtdthits.empty(),pathLength);
+      reco::Track result = buildTrack(track, thetrj, trj, bs, magfield.product(), 
+				      prop.product(), !mtdthits.empty(),pathLength);
       if( result.ndof() >= 0 ) {
         /// setup the track extras
         reco::TrackExtra::TrajParams trajParams;
@@ -236,24 +261,53 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
         //create the track
         output->push_back(result);
 	pathLengthsRaw.push_back(pathLength);
+	pathLengthMap = pathLength;
         auto& backtrack = output->back();
+	betaMap = backtrack.beta();
+	t0Map = backtrack.t0();
+	covt0t0Map = backtrack.covt0t0();
         reco::TrackExtraRef extraRef(extrasRefProd,extras->size()-1);
         backtrack.setExtra( (updateExtra_ ? extraRef : track.extra()) );
         for(unsigned ihit = hitsstart; ihit < hitsend; ++ihit) {
           backtrack.appendHitPattern((*outhits)[ihit],ttopo);
         }
       }
+      pathLengthsOrigTrkRaw.push_back(pathLengthMap);
+      betaOrigTrkRaw.push_back(betaMap);
+      t0OrigTrkRaw.push_back(t0Map);
+      covt0t0OrigTrkRaw.push_back(covt0t0Map);
     }
+    ++itrack;
   }
-  
-  auto trksHandle = ev.put(std::move(output));
+
+  auto outTrksHandle = ev.put(std::move(output));
   ev.put(std::move(extras));
   ev.put(std::move(outhits));
 
   edm::ValueMap<float>::Filler fillerPathLengths(*pathLengths);
-  fillerPathLengths.insert(trksHandle,pathLengthsRaw.cbegin(),pathLengthsRaw.cend());
+  fillerPathLengths.insert(outTrksHandle,pathLengthsRaw.cbegin(),pathLengthsRaw.cend());
   fillerPathLengths.fill();
   ev.put(std::move(pathLengths),pathLengthName);
+
+  edm::ValueMap<float>::Filler fillerPathLengthsOrigTrk(*pathLengthsOrigTrk);
+  fillerPathLengthsOrigTrk.insert(tracksH,pathLengthsOrigTrkRaw.cbegin(),pathLengthsOrigTrkRaw.cend());
+  fillerPathLengthsOrigTrk.fill();
+  ev.put(std::move(pathLengthsOrigTrk),pathLengthOrigTrkName);
+
+  edm::ValueMap<float>::Filler fillerBetas(*betaOrigTrk);
+  fillerBetas.insert(tracksH,betaOrigTrkRaw.cbegin(),betaOrigTrkRaw.cend());
+  fillerBetas.fill();
+  ev.put(std::move(betaOrigTrk),betaOrigTrkName);
+
+  edm::ValueMap<float>::Filler fillert0s(*t0OrigTrk);
+  fillert0s.insert(tracksH,t0OrigTrkRaw.cbegin(),t0OrigTrkRaw.cend());
+  fillert0s.fill();
+  ev.put(std::move(t0OrigTrk),t0OrigTrkName);
+
+  edm::ValueMap<float>::Filler fillercovt0t0s(*covt0t0OrigTrk);
+  fillercovt0t0s.insert(tracksH,covt0t0OrigTrkRaw.cbegin(),covt0t0OrigTrkRaw.cend());
+  fillercovt0t0s.fill();
+  ev.put(std::move(covt0t0OrigTrk),covt0t0OrigTrkName);
 }
 
 namespace {
@@ -351,7 +405,7 @@ reco::Track TrackExtenderWithMTDT<TrackCollection>::buildTrack(const reco::Track
   TrajectoryStateOnSurface stateForProjectionToBeamLineOnSurface = 
     traj.closestMeasurement(GlobalPoint(bs.x0(),bs.y0(),bs.z0())).updatedState();
   
-  if UNLIKELY(!stateForProjectionToBeamLineOnSurface.isValid()){
+  if UNLIKELY(!stateForProjectionToBeamLineOnSurface.isValid()) {
     edm::LogError("CannotPropagateToBeamLine")<<"the state on the closest measurement isnot valid. skipping track.";
     return reco::Track();
   }
@@ -378,6 +432,7 @@ reco::Track TrackExtenderWithMTDT<TrackCollection>::buildTrack(const reco::Track
   double t0 = 0.;
   double covt0t0 = -1.;
   pathLength = -1.f; // if there is no MTD flag the pathlength with -1
+  double betaOut = 0.;
 
   //compute path length for time backpropagation, using first MTD hit for the momentum
   if (hasMTD) {
@@ -444,6 +499,7 @@ reco::Track TrackExtenderWithMTDT<TrackCollection>::buildTrack(const reco::Track
       pathLength = pathlength; // set path length if we've got a timing hit
       t0 = thit - dt;
       covt0t0 = thiterror*thiterror;
+      beta = betaOut;
       //printf("Propagation to MTD with pathlength1 = %5f, pathlength2 = %5f, path length = %5f, beta = %5f, thit = %5f, dt = %5f, t0 = %5f\n", pathlength1, pathlength2,pathlength,beta,thit,dt,t0);
     }
   }
@@ -452,7 +508,7 @@ reco::Track TrackExtenderWithMTDT<TrackCollection>::buildTrack(const reco::Track
 		     int(ndof),
 		     pos, mom, tscbl.trackStateAtPCA().charge(), 
 		     tscbl.trackStateAtPCA().curvilinearError(),
-		     orig.algo(),reco::TrackBase::undefQuality,t0,0,covt0t0,-1.);
+		     orig.algo(),reco::TrackBase::undefQuality,t0,betaOut,covt0t0,-1.);
 }
 
 template<class TrackCollection>
