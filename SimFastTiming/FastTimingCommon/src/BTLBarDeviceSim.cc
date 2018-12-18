@@ -120,7 +120,7 @@ void BTLBarDeviceSim::getHitsResponse(const std::vector<std::tuple<int,uint32_t,
     
     if ( (simHitIt->second).hit_info[1][1] == 0 
 	 || tL < (simHitIt->second).hit_info[1][1] )
-      (simHitIt->second).hit_info[1][1] = tL;
+      (simHitIt->second).hit_info[1][1] = tL;      
 
   } // hitRef loop
 
