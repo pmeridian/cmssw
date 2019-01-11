@@ -53,12 +53,13 @@ float MTDTimeCalib::getTimeCalib(const MTDDetId& id) const
 	}
       else if ( topo_->getMTDTopologyMode() == (int ) BTLDetId::CrysLayout::bar )
 	{
-	  //for bar staggered as used in 
+	  //for bars in phi
 	  constexpr float lightSlopeColl = 0.075;
 	  time_calib -= 0.5*topo.pitch().first*lightSlopeColl; //time offset for bar time is L/2v 
 	}
       else 
 	{
+	  //for bars in z
 	  constexpr float lightSlopeColl = 0.075;
 	  time_calib -= 0.5*topo.pitch().second*lightSlopeColl; //time offset for bar time is L/2v 
 	}
