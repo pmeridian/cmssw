@@ -121,6 +121,7 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
   edm::ESHandle<TransientTrackingRecHitBuilder> hitbuilder;
   edm::ESHandle<GlobalTrackingGeometry> gtg;
   edm::ESHandle<Propagator> prop;
+  double estimatorMaxChi2_,estimatorNSigma_;
 };
 
 
@@ -134,11 +135,11 @@ TrackExtenderWithMTDT<TrackCollection>::TrackExtenderWithMTDT(const ParameterSet
   updatePattern_(iConfig.getParameter<bool>("updateTrackHitPattern")),
   mtdRecHitBuilder_(iConfig.getParameter<std::string>("MTDRecHitBuilder")),
   propagator_(iConfig.getParameter<std::string>("Propagator")),
-  transientTrackBuilder_(iConfig.getParameter<std::string>("TransientTrackBuilder")) {
-  constexpr float maxChi2=500.;
-  constexpr float nSigma=10.;
-  theEstimator = std::make_unique<Chi2MeasurementEstimator>(maxChi2,nSigma);
-  
+  transientTrackBuilder_(iConfig.getParameter<std::string>("TransientTrackBuilder")),
+  estimatorMaxChi2_(iConfig.getParameter<double>("estimatorMaxChi2")),
+  estimatorNSigma_(iConfig.getParameter<double>("estimatorNSigma"))
+{
+  theEstimator = std::make_unique<Chi2MeasurementEstimator>(estimatorMaxChi2_,estimatorNSigma_);
   theTransformer = std::make_unique<TrackTransformer>(iConfig.getParameterSet("TrackTransformer"));
   
   produces<edm::ValueMap<float> >(pathLengthOrigTrkName);
@@ -160,6 +161,8 @@ void TrackExtenderWithMTDT<TrackCollection>::fillDescriptions(edm::Configuration
   desc.add<bool>("updateTrackTrajectory",true);
   desc.add<bool>("updateTrackExtra",true);
   desc.add<bool>("updateTrackHitPattern",true);
+  desc.add<double>("estimatorMaxChi2",25);
+  desc.add<double>("estimatorNSigma",5);
   desc.add<std::string>("TransientTrackBuilder","TransientTrackBuilder");
   desc.add<std::string>("MTDRecHitBuilder","MTDRecHitBuilder");
   desc.add<std::string>("Propagator","PropagatorWithMaterialForMTD");  
