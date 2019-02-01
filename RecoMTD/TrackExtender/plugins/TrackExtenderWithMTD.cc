@@ -57,11 +57,36 @@ using namespace std;
 using namespace edm;
 
 
+class MTDHitMatchingInfo
+{
+public:
+  MTDHitMatchingInfo()
+  {
+    hit = nullptr;
+    estChi2 = std::numeric_limits<double>::max();
+    timeChi2 = std::numeric_limits<double>::max();
+  }
 
+  inline bool operator<(const MTDHitMatchingInfo &m2) const { 
+    //within 3sigma for the timeChi2 use estChi2, otherwise use time compatibility
+    if (timeChi2<10 && m2.timeChi2<10)
+      return estChi2 < m2.estChi2;
+    else
+      return timeChi2 < m2.timeChi2;
+  }
+
+  inline double chi2() const { return estChi2 + timeChi2; }
+  
+  const MTDTrackingRecHit* hit;
+  double estChi2;
+  double timeChi2;
+};
 
 template<class TrackCollection>
 class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {  
  public:
+
+
   typedef typename TrackCollection:: value_type TrackType;
   typedef edm::View<TrackType> InputCollection;
   
@@ -75,16 +100,22 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
   TransientTrackingRecHit::ConstRecHitContainer tryBTLLayers(const TrackType&, 
+							     const Trajectory& traj,
 							     const MTDTrackingDetSetVector&,
 							     const MTDDetLayerGeometry*, 
 							     const MagneticField* field,
-							     const Propagator* prop) const;
+							     const Propagator* prop,
+							     const reco::BeamSpot& bs,
+							     MTDHitMatchingInfo& bestHit) const;
 
   TransientTrackingRecHit::ConstRecHitContainer tryETLLayers(const TrackType&,
+							     const Trajectory& traj,
 							     const MTDTrackingDetSetVector&,
 							     const MTDDetLayerGeometry*, 
 							     const MagneticField* field,
-							     const Propagator* prop) const;
+							     const Propagator* prop,
+							     const reco::BeamSpot& bs,
+							     MTDHitMatchingInfo& bestHit) const;
   
   RefitDirection::GeometricalDirection
   checkRecHitsOrdering(TransientTrackingRecHit::ConstRecHitContainer const & recHits) const {
@@ -109,6 +140,10 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
   string dumpLayer(const DetLayer* layer) const;
 
  private:
+  static constexpr char btlMatchChi2Name[] = "btlMatchChi2";
+  static constexpr char etlMatchChi2Name[] = "etlMatchChi2";
+  static constexpr char btlMatchTimeChi2Name[] = "btlMatchTimeChi2";
+  static constexpr char etlMatchTimeChi2Name[] = "etlMatchTimeChi2";
   static constexpr char pathLengthName[] = "pathLength";
   static constexpr char tmtdName[] = "tmtd";
   static constexpr char sigmatmtdName[] = "sigmatmtd";  
@@ -119,7 +154,7 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
   static constexpr char pathLengthOrigTrkName[] = "generalTrackPathLength";
   static constexpr char tmtdOrigTrkName[] = "generalTracktmtd";
   static constexpr char sigmatmtdOrigTrkName[] = "generalTracksigmatmtd";
-   
+  
   edm::EDGetTokenT<InputCollection> tracksToken_;
   edm::EDGetTokenT<MTDTrackingDetSetVector> hitsToken_;
   edm::EDGetTokenT<reco::BeamSpot> bsToken_;
@@ -131,6 +166,13 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
   edm::ESHandle<TransientTrackingRecHitBuilder> hitbuilder;
   edm::ESHandle<GlobalTrackingGeometry> gtg;
   edm::ESHandle<Propagator> prop;
+
+  float estMaxChi2_;
+  float estMaxNSigma_;
+  float btlChi2Cut_;
+  float btlTimeChi2Cut_;
+  float etlChi2Cut_;
+  float etlTimeChi2Cut_;
 };
 
 
@@ -144,13 +186,21 @@ TrackExtenderWithMTDT<TrackCollection>::TrackExtenderWithMTDT(const ParameterSet
   updatePattern_(iConfig.getParameter<bool>("updateTrackHitPattern")),
   mtdRecHitBuilder_(iConfig.getParameter<std::string>("MTDRecHitBuilder")),
   propagator_(iConfig.getParameter<std::string>("Propagator")),
-  transientTrackBuilder_(iConfig.getParameter<std::string>("TransientTrackBuilder")) {
-  constexpr float maxChi2=500.;
-  constexpr float nSigma=10.;
-  theEstimator = std::make_unique<Chi2MeasurementEstimator>(maxChi2,nSigma);
-  
+  transientTrackBuilder_(iConfig.getParameter<std::string>("TransientTrackBuilder")),
+  estMaxChi2_(iConfig.getParameter<double>("EstimatorMaxChi2")),
+  estMaxNSigma_(iConfig.getParameter<double>("EstimatorMaxNSigma")),
+  btlChi2Cut_(iConfig.getParameter<double>("BTLChi2Cut")),
+  btlTimeChi2Cut_(iConfig.getParameter<double>("BTLTimeChi2Cut")),
+  etlChi2Cut_(iConfig.getParameter<double>("ETLChi2Cut")),
+  etlTimeChi2Cut_(iConfig.getParameter<double>("ETLTimeChi2Cut"))
+  {
+  theEstimator = std::make_unique<Chi2MeasurementEstimator>(estMaxChi2_,estMaxNSigma_);
   theTransformer = std::make_unique<TrackTransformer>(iConfig.getParameterSet("TrackTransformer"));
   
+  produces<edm::ValueMap<float> >(btlMatchChi2Name);
+  produces<edm::ValueMap<float> >(etlMatchChi2Name);
+  produces<edm::ValueMap<float> >(btlMatchTimeChi2Name);
+  produces<edm::ValueMap<float> >(etlMatchTimeChi2Name);
   produces<edm::ValueMap<float> >(pathLengthName);
   produces<edm::ValueMap<float> >(tmtdName);
   produces<edm::ValueMap<float> >(sigmatmtdName); 
@@ -191,6 +241,12 @@ void TrackExtenderWithMTDT<TrackCollection>::fillDescriptions(edm::Configuration
 					"MTDRecHitBuilder"
 					);
   desc.add<edm::ParameterSetDescription>("TrackTransformer",transDesc);
+  desc.add<double>("EstimatorMaxChi2",500.);  
+  desc.add<double>("EstimatorMaxNSigma",10.); 
+  desc.add<double>("BTLChi2Cut",500.);   
+  desc.add<double>("BTLTimeChi2Cut",10.);   
+  desc.add<double>("ETLChi2Cut",500.);   
+  desc.add<double>("ETLTimeChi2Cut",10.);   
   descriptions.add("trackExtenderWithMTDBase", desc);
 }
 
@@ -237,6 +293,10 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
   auto extras  = std::make_unique<reco::TrackExtraCollection>();
   auto outhits = std::make_unique<edm::OwnVector<TrackingRecHit>>();
 
+  std::vector<float> btlMatchChi2;
+  std::vector<float> etlMatchChi2;
+  std::vector<float> btlMatchTimeChi2;
+  std::vector<float> etlMatchTimeChi2;
   std::vector<float> pathLengthsRaw;
   std::vector<float> tmtdRaw;
   std::vector<float> sigmatmtdRaw;
@@ -267,16 +327,19 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
     reco::TransientTrack ttrack(track,magfield.product(),gtg);
     const auto& trajs = theTransformer->transform(track);
     auto thits = theTransformer->getTransientRecHits(ttrack);
-
     TransientTrackingRecHit::ConstRecHitContainer mtdthits;
-    const auto& btlhits = tryBTLLayers(track,hits,geo.product(),magfield.product(),prop.product());
-    mtdthits.insert(mtdthits.end(),btlhits.begin(),btlhits.end());
-    
-    // in the future this should include an intermediate refit before propagating to the ETL
-    // for now it is ok
-    const auto& etlhits = tryETLLayers(track,hits,geo.product(),magfield.product(),prop.product());
-    mtdthits.insert(mtdthits.end(),etlhits.begin(),etlhits.end());
-    
+    MTDHitMatchingInfo mBTL,mETL;
+    if (trajs.size() > 0 )
+      {
+	const auto& btlhits = tryBTLLayers(track,trajs.front(),hits,geo.product(),magfield.product(),prop.product(),bs,mBTL);
+	mtdthits.insert(mtdthits.end(),btlhits.begin(),btlhits.end());
+	
+	// in the future this should include an intermediate refit before propagating to the ETL
+	// for now it is ok
+	const auto& etlhits = tryETLLayers(track,trajs.front(),hits,geo.product(),magfield.product(),prop.product(),bs,mETL);
+	mtdthits.insert(mtdthits.end(),etlhits.begin(),etlhits.end());
+      }
+
     auto ordering = checkRecHitsOrdering(thits);
     if( ordering == RefitDirection::insideOut) {
       thits.insert(thits.end(),mtdthits.begin(),mtdthits.end());
@@ -309,6 +372,10 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
         extras->back().setTrajParams(trajParams,chi2s);        
 	//create the track
 	output->push_back(result);
+	btlMatchChi2.push_back(mBTL.hit ? mBTL.estChi2 : -1);
+	etlMatchChi2.push_back(mETL.hit ? mETL.estChi2 : -1);
+	btlMatchTimeChi2.push_back(mBTL.hit ? mBTL.timeChi2 : -1);
+	etlMatchTimeChi2.push_back(mETL.hit ? mETL.timeChi2 : -1);
 	pathLengthsRaw.push_back(pathLength);
 	tmtdRaw.push_back(tmtd);
 	sigmatmtdRaw.push_back(sigmatmtd);
@@ -341,6 +408,10 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
   ev.put(std::move(extras));
   ev.put(std::move(outhits));
 
+  fillValueMap(ev, outTrksHandle, btlMatchChi2, btlMatchChi2Name);
+  fillValueMap(ev, outTrksHandle, etlMatchChi2, etlMatchChi2Name);
+  fillValueMap(ev, outTrksHandle, btlMatchTimeChi2, btlMatchTimeChi2Name);
+  fillValueMap(ev, outTrksHandle, etlMatchTimeChi2, etlMatchTimeChi2Name);
   fillValueMap(ev, outTrksHandle, pathLengthsRaw, pathLengthName);
   fillValueMap(ev, outTrksHandle, tmtdRaw, tmtdName);
   fillValueMap(ev, outTrksHandle, sigmatmtdRaw, sigmatmtdName);
@@ -355,54 +426,222 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
 
 namespace {
   bool cmp_for_detset(const unsigned one, const unsigned two) { return one < two; };
+
+  bool getTrajectoryStateClosestToBeamLine(const Trajectory& traj, const reco::BeamSpot& bs, const Propagator* thePropagator, TrajectoryStateClosestToBeamLine& tscbl)
+  {
+    // get the state closest to the beamline
+    TrajectoryStateOnSurface stateForProjectionToBeamLineOnSurface = 
+      traj.closestMeasurement(GlobalPoint(bs.x0(),bs.y0(),bs.z0())).updatedState();
   
-  void find_hits_in_dets(const MTDTrackingDetSetVector& hits, const DetLayer* layer,
-			 const TrajectoryStateOnSurface& tsos, const Propagator* prop,
+    if UNLIKELY(!stateForProjectionToBeamLineOnSurface.isValid()) {
+	edm::LogError("CannotPropagateToBeamLine")<<"the state on the closest measurement isnot valid. skipping track.";
+	return false;
+      }
+  
+    const FreeTrajectoryState & stateForProjectionToBeamLine=*stateForProjectionToBeamLineOnSurface.freeState();
+  
+    TSCBLBuilderWithPropagator tscblBuilder(*thePropagator);
+    tscbl = tscblBuilder(stateForProjectionToBeamLine,bs);
+  
+    if UNLIKELY(!tscbl.isValid()) {
+	return false;
+      }
+
+    return true;
+  }
+
+  bool trackPathLength(const Trajectory& traj, const reco::BeamSpot& bs, const Propagator* thePropagator, double& pathlength)
+  {
+    pathlength = 0.;
+   
+    TrajectoryStateClosestToBeamLine tscbl;
+    bool tscbl_status = getTrajectoryStateClosestToBeamLine(traj,bs,thePropagator,tscbl);
+
+    if (!tscbl_status)
+      return false;
+    
+    bool validpropagation = true;
+    double pathlength1 = 0.;
+    double pathlength2 = 0.;
+
+    //add pathlength layer by layer
+    for (auto it=traj.measurements().begin(); it!=traj.measurements().end()-1; ++it) 
+      {
+	const auto &propresult = thePropagator->propagateWithPath(it->updatedState(), (it+1)->updatedState().surface());
+	double layerpathlength = std::abs(propresult.second);
+	if (layerpathlength==0.) {
+	  validpropagation = false;
+	}
+	pathlength1 += layerpathlength;
+      }
+    
+    //add distance from bs to first measurement
+    if (traj.direction() == alongMomentum) 
+      {
+	const auto &propresult2 = thePropagator->propagateWithPath(tscbl.trackStateAtPCA(), traj.firstMeasurement().updatedState().surface());
+	pathlength2 = propresult2.second;
+	if (pathlength2 == 0.) {
+	  validpropagation = false;
+	}
+	pathlength = pathlength1 + pathlength2; 
+      }
+    else 
+      {
+	const auto &propresult2 = thePropagator->propagateWithPath(tscbl.trackStateAtPCA(), traj.lastMeasurement().updatedState().surface());
+	pathlength2 = propresult2.second;
+	if (pathlength2 == 0.) {
+	  validpropagation = false;
+	}
+	pathlength = pathlength1 + pathlength2;
+      }
+    
+    return validpropagation;
+  }
+
+  struct TrackTofPidInfo
+  {
+    TrackTofPidInfo(const double& magp2, const double& length, const double& t_mtd, const double& t_mtderr, bool addPIDError=true, bool addBsError=true)
+    {
+      tmtd=t_mtd;
+      tmtderror=t_mtderr;
+
+      pathlength = length;
+      
+      gammasq_pi = 1. + magp2*m_pi_inv2;
+      beta_pi = std::sqrt(1.-1./gammasq_pi);
+      dt_pi = pathlength/beta_pi*c_inv;
+    
+      gammasq_p = 1. + magp2*m_p_inv2;
+      beta_p = std::sqrt(1.-1./gammasq_p);
+      dt_p = pathlength/beta_p*c_inv;
+
+      dt = tmtd - dt_pi; //assume by default the pi hypothesis
+      dterror= tmtderror; 
+      betaerror=0;
+
+      if (addPIDError)
+	{
+	  dterror = sqrt(dterror*dterror + (dt_p-dt_pi)*(dt_p-dt_pi));
+	  betaerror = beta_p - beta_pi;
+	}
+      if (addBsError)
+	dterror = sqrt( dterror*dterror + bserror*bserror );
+
+      dtchi2 = (dt*dt)/(dterror*dterror);
+    }
+
+    static constexpr double m_pi = 0.13957018;
+    static constexpr double m_pi_inv2 = 1.0/m_pi/m_pi;
+    static constexpr double m_p = 0.9382720813;
+    static constexpr double m_p_inv2 = 1.0/m_p/m_p;
+    static constexpr double c_cm_ns = CLHEP::c_light*CLHEP::ns/CLHEP::cm; //[cm/ns]
+    static constexpr double c_inv = 1.0/c_cm_ns;
+    //this should come from BeamSpot in principle
+    static constexpr double bserror = 0.18;
+
+    double tmtd;
+    double tmtderror;
+
+    double pathlength;
+
+    double dt;
+    double dterror;
+    double dtchi2;
+
+    double gammasq_pi;
+    double beta_pi;
+    double dt_pi;
+    
+    double gammasq_p;
+    double beta_p;
+    double dt_p;
+    
+    double betaerror;
+  };
+
+
+  void find_hits_in_dets(const MTDTrackingDetSetVector& hits, const Trajectory& traj, const DetLayer* layer,
+			 const TrajectoryStateOnSurface& tsos, const reco::BeamSpot& bs, const Propagator* prop,
 			 const MeasurementEstimator& theEstimator,		       
 			 const TransientTrackingRecHitBuilder& hitbuilder,
-			 TransientTrackingRecHit::ConstRecHitContainer& output) {
+			 std::set<MTDHitMatchingInfo>& output) {
+
+    TrajectoryStateClosestToBeamLine tscbl;
+    bool tscbl_status = getTrajectoryStateClosestToBeamLine(traj,bs,prop,tscbl);
+
+    if (!tscbl_status)
+      return;
+    
+    GlobalVector p = tscbl.trackStateAtPCA().momentum();
+    
+    double pathlength;
+    trackPathLength(traj,bs,prop,pathlength);
+    
     pair<bool, TrajectoryStateOnSurface> comp = layer->compatible(tsos,*prop,theEstimator);
     if( comp.first ) {    
       vector<DetLayer::DetWithState> compDets = layer->compatibleDets(tsos,*prop,theEstimator);
       if (!compDets.empty()) {
-	MTDTrackingRecHit* best = nullptr;
-	double best_chi2 = std::numeric_limits<double>::max();
 	for( const auto& detWithState : compDets ) {	
 	  auto range = hits.equal_range(detWithState.first->geographicalId(),cmp_for_detset);	  
 	  for( auto detitr = range.first; detitr != range.second; ++detitr ) {
 	    for( auto itr = detitr->begin(); itr != detitr->end(); ++itr ) {
+
 	      auto est =  theEstimator.estimate(detWithState.second,*itr);
-	      if( est.first && est.second < best_chi2 ) { // just take the best chi2
-		best = &(*itr);
-		best_chi2 = est.second;
-	      }
+	      auto pl = prop->propagateWithPath(tsos,detWithState.second.surface());
+
+	      if (!est.first || std::abs(pl.second) == 0.)
+		continue;
 	      
+	      double tot_pl = pathlength + std::abs(pl.second); //
+	      TrackTofPidInfo tof(p.mag2(), tot_pl, itr->time(), itr->timeError(), true, true);
+	      
+	      MTDHitMatchingInfo mi;
+	      mi.hit=&(*itr);
+	      mi.estChi2=est.second;
+	      mi.timeChi2=tof.dtchi2;
+
+	      output.insert(mi);	      
 	    }
 	  }
 	}
-	if( best ) 
-	  output.push_back(hitbuilder.build(best));
       }
     }
   }
 }
-
+  
 template<class TrackCollection>
 TransientTrackingRecHit::ConstRecHitContainer
 TrackExtenderWithMTDT<TrackCollection>::tryBTLLayers(const TrackType& track,
+						     const Trajectory& traj,
 						     const MTDTrackingDetSetVector& hits,
 						     const MTDDetLayerGeometry* geo,
 						     const MagneticField* field,
-						     const Propagator* prop) const {
+						     const Propagator* prop,
+						     const reco::BeamSpot& bs,
+						     MTDHitMatchingInfo& bestHit) const {
   
   TransientTrackingRecHit::ConstRecHitContainer output;
   const vector<const DetLayer*>& layers = geo->allBTLLayers();
   auto tTrack = builder->build(track);
+  TrajectoryStateOnSurface tsos = tTrack.outermostMeasurementState();
 
+  bestHit=MTDHitMatchingInfo();
   for (const DetLayer* ilay : layers) {
     // get the outermost trajectory point on the track    
-    TrajectoryStateOnSurface tsos = tTrack.outermostMeasurementState();
-    find_hits_in_dets(hits,ilay,tsos,prop,*theEstimator,*hitbuilder,output);
+    std::set<MTDHitMatchingInfo> hitsInLayer;
+    find_hits_in_dets(hits,traj,ilay,tsos,bs,prop,*theEstimator,*hitbuilder,hitsInLayer);
+    
+    //just take the first hit because the hits are sorted on their matching quality
+    if (hitsInLayer.size()>0)
+      {
+	//check hits to pass minimum quality matching requirements
+      	if ( hitsInLayer.begin()->estChi2<btlChi2Cut_ && hitsInLayer.begin()->timeChi2<btlTimeChi2Cut_ )
+	{
+	  output.push_back(hitbuilder->build(hitsInLayer.begin()->hit));    
+	  if ((*hitsInLayer.begin())<bestHit)
+	    bestHit=(*hitsInLayer.begin());
+	}
+      }
   }
   return output;
 }
@@ -410,24 +649,41 @@ TrackExtenderWithMTDT<TrackCollection>::tryBTLLayers(const TrackType& track,
 template<class TrackCollection>
 TransientTrackingRecHit::ConstRecHitContainer
 TrackExtenderWithMTDT<TrackCollection>::tryETLLayers(const TrackType& track, 
+						     const Trajectory& traj,
 						     const MTDTrackingDetSetVector& hits,
 						     const MTDDetLayerGeometry* geo,
 						     const MagneticField* field,
-						     const Propagator* prop) const {
+						     const Propagator* prop,
+						     const reco::BeamSpot& bs,
+						     MTDHitMatchingInfo& bestHit) const {
 
   TransientTrackingRecHit::ConstRecHitContainer output;
   const vector<const DetLayer*>& layers = geo->allETLLayers();
 
+  bestHit=MTDHitMatchingInfo();
   auto tTrack = builder->build(track);
+  // get the outermost trajectory point on the track    
+  TrajectoryStateOnSurface tsos = tTrack.outermostMeasurementState();
   
   for (const DetLayer* ilay : layers) {
     const BoundDisk& disk = static_cast<const MTDRingForwardDoubleLayer*>(ilay)->specificSurface();
     const double diskZ = disk.position().z();
 
-    // get the outermost trajectory point on the track    
-    TrajectoryStateOnSurface tsos = tTrack.outermostMeasurementState();
     if( tsos.globalPosition().z() * diskZ < 0 ) continue; // only propagate to the disk that's on the same side
-    find_hits_in_dets(hits,ilay,tsos,prop,*theEstimator,*hitbuilder,output);    
+    std::set<MTDHitMatchingInfo> hitsInLayer;
+    find_hits_in_dets(hits,traj,ilay,tsos,bs,prop,*theEstimator,*hitbuilder,hitsInLayer);    
+
+    //just take the first hit because the hits are sorted on their matching score (chi2)
+    if (hitsInLayer.size()>0)
+      {
+	//check hits to pass minimum quality matching requirements
+      	if ( hitsInLayer.begin()->estChi2<etlChi2Cut_ && hitsInLayer.begin()->timeChi2<etlTimeChi2Cut_ )
+	{
+	  output.push_back(hitbuilder->build(hitsInLayer.begin()->hit));    
+	  if ((*hitsInLayer.begin())<bestHit)
+	    bestHit=(*hitsInLayer.begin());
+	}
+      }
   }
   return output;
 }
@@ -447,36 +703,18 @@ reco::Track TrackExtenderWithMTDT<TrackCollection>::buildTrack(const reco::Track
 							       float& tmtdOut,
 							       float& sigmatmtdOut) const {  
 
-  // get the state closest to the beamline
-  TrajectoryStateOnSurface stateForProjectionToBeamLineOnSurface = 
-    traj.closestMeasurement(GlobalPoint(bs.x0(),bs.y0(),bs.z0())).updatedState();
-  
-  if UNLIKELY(!stateForProjectionToBeamLineOnSurface.isValid()) {
-    edm::LogError("CannotPropagateToBeamLine")<<"the state on the closest measurement isnot valid. skipping track.";
-    return reco::Track();
-  }
 
-  constexpr double m_pi = 0.13957018;
-  constexpr double m_pi_inv2 = 1.0/m_pi/m_pi;
-  constexpr double m_p = 0.9382720813;
-  constexpr double m_p_inv2 = 1.0/m_p/m_p;
-  constexpr double c_cm_ns = CLHEP::c_light*CLHEP::ns/CLHEP::cm; //[cm/ns]
-  constexpr double c_inv = 1.0/c_cm_ns;
-  
-  const FreeTrajectoryState & stateForProjectionToBeamLine=*stateForProjectionToBeamLineOnSurface.freeState();
-  
-  TSCBLBuilderWithPropagator tscblBuilder(*thePropagator);
-  TrajectoryStateClosestToBeamLine tscbl = tscblBuilder(stateForProjectionToBeamLine,bs);
-  
-  if UNLIKELY(!tscbl.isValid()) {
-    return reco::Track();
-  }
+  TrajectoryStateClosestToBeamLine tscbl;
+  bool tsbcl_status = getTrajectoryStateClosestToBeamLine(traj,bs,thePropagator,tscbl);
 
+  if (!tsbcl_status)
+    return reco::Track();
+  
   GlobalPoint v = tscbl.trackStateAtPCA().position();
   math::XYZPoint  pos( v.x(), v.y(), v.z() );
   GlobalVector p = tscbl.trackStateAtPCA().momentum();
   math::XYZVector mom( p.x(), p.y(), p.z() );
-
+  
   int ndof = traj.ndof();
   
   double t0 = 0.;
@@ -490,82 +728,34 @@ reco::Track TrackExtenderWithMTDT<TrackCollection>::buildTrack(const reco::Track
   //compute path length for time backpropagation, using first MTD hit for the momentum
   if (hasMTD) {
     
-    bool validpropagation = true;
-    double pathlength = 0.;
-    double pathlength1 = 0.;
-    double pathlength2 = 0.;
-    for (auto it=trajWithMtd.measurements().begin(); it!=trajWithMtd.measurements().end()-1; ++it) {
-       const auto &propresult = thePropagator->propagateWithPath(it->updatedState(), (it+1)->updatedState().surface());
-       double layerpathlength = std::abs(propresult.second);
-       if (layerpathlength==0.) {
-         validpropagation = false;
-       }
-       pathlength1 += layerpathlength;
-    }
-     
+    double pathlength;
+    bool validpropagation=trackPathLength(trajWithMtd,bs,thePropagator,pathlength);
+
     double thit = 0.;
     double thiterror = -1.;
     bool validmtd = false;
-    if (trajWithMtd.direction() == alongMomentum) {
-      for (auto it=trajWithMtd.measurements().begin(); it!=trajWithMtd.measurements().end(); ++it) {
-        bool ismtd = it->recHit()->geographicalId().det() == DetId::Forward && ForwardSubdetector(it->recHit()->geographicalId().subdetId()) == FastTime;
-        if (ismtd) {
-          const auto &propresult2 = thePropagator->propagateWithPath(tscbl.trackStateAtPCA(), trajWithMtd.firstMeasurement().updatedState().surface());
-	  pathlength2 = propresult2.second;
-          if (pathlength2 == 0.) {
-            validpropagation = false;
-          }
-          pathlength = pathlength1 + pathlength2; 
-          const MTDTrackingRecHit *mtdhit = static_cast<const MTDTrackingRecHit*>(it->recHit()->hit());
-          thit = mtdhit->time();
-          thiterror = mtdhit->timeError();
-          validmtd = true;
-          break;          
-        }
-      }
-    }
-    else {
-      for (auto it=trajWithMtd.measurements().rbegin(); it!=trajWithMtd.measurements().rend(); ++it) {
-        bool ismtd = it->recHit()->geographicalId().det() == DetId::Forward && ForwardSubdetector(it->recHit()->geographicalId().subdetId()) == FastTime;
-        if (ismtd) {
-          const auto &propresult2 = thePropagator->propagateWithPath(tscbl.trackStateAtPCA(), trajWithMtd.lastMeasurement().updatedState().surface());
-          pathlength2 = propresult2.second;
-          if (pathlength2 == 0.) {
-            validpropagation = false;
-          }
-          pathlength = pathlength1 + pathlength2;
-          const MTDTrackingRecHit *mtdhit = static_cast<const MTDTrackingRecHit*>(it->recHit()->hit());
-          thit = mtdhit->time();
-          thiterror = mtdhit->timeError();
-          validmtd = true;
-          break;          
-        }
+    for (auto it=trajWithMtd.measurements().begin(); it!=trajWithMtd.measurements().end(); ++it) {
+      bool ismtd = it->recHit()->geographicalId().det() == DetId::Forward && ForwardSubdetector(it->recHit()->geographicalId().subdetId()) == FastTime;
+      if (ismtd) {
+	const MTDTrackingRecHit *mtdhit = static_cast<const MTDTrackingRecHit*>(it->recHit()->hit());
+	thit = mtdhit->time();
+	thiterror = mtdhit->timeError();
+	validmtd = true;
+	break;          
       }
     }
         
-    if (validmtd && validpropagation) {
-      double magp2 = p.mag2();
-
-      double gammasq_pi = 1. + magp2*m_pi_inv2;
-      double beta_pi = std::sqrt(1.-1./gammasq_pi);
-      double dt_pi = pathlength/beta_pi*c_inv;
-      
-      double gammasq_p = 1. + magp2*m_p_inv2;
-      double beta_p = std::sqrt(1.-1./gammasq_p);
-      double dt_p = pathlength/beta_p*c_inv;
-      
-      double dterror = dt_p - dt_pi;
-      double betaerror = beta_p - beta_pi;
-      
-      pathLengthOut = pathlength; // set path length if we've got a timing hit
-      tmtdOut = thit;
-      sigmatmtdOut = thiterror;
-      t0 = thit - dt_pi;
-      covt0t0 = thiterror*thiterror + dterror*dterror;
-      betaOut = beta_pi;
-      covbetabeta  = betaerror*betaerror;
-    }
-    
+    if (validmtd && validpropagation) 
+      {
+	TrackTofPidInfo tofInfo( p.mag2() , pathlength, thit, thiterror, true, false ); //here do not add for vertexing purposes the bs uncertainty
+	pathLengthOut = pathlength; // set path length if we've got a timing hit
+	tmtdOut = thit;
+	sigmatmtdOut = thiterror;
+	t0 = tofInfo.dt;
+	covt0t0 = tofInfo.dterror*tofInfo.dterror;
+	betaOut = tofInfo.beta_pi;
+	covbetabeta  = tofInfo.betaerror*tofInfo.betaerror;
+      }
   }
   
   return reco::Track(traj.chiSquared(),
