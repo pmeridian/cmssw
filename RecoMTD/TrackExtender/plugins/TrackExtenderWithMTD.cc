@@ -68,14 +68,14 @@ public:
   }
 
   inline bool operator<(const MTDHitMatchingInfo &m2) const { 
-    //within 3sigma for the timeChi2 use estChi2, otherwise use time compatibility
-    if (timeChi2<10 && m2.timeChi2<10)
-      return estChi2 < m2.estChi2;
+    //only for good matching in time use estChi2, otherwise use time compatibility
+    if (timeChi2<5 && m2.timeChi2<5)
+      return chi2(3.) < m2.chi2(3.);
     else
       return timeChi2 < m2.timeChi2;
   }
 
-  inline double chi2() const { return estChi2 + timeChi2; }
+  inline double chi2(float timeWeight=1.) const { return estChi2 + timeWeight*timeChi2; }
   
   const MTDTrackingRecHit* hit;
   double estChi2;
@@ -243,10 +243,10 @@ void TrackExtenderWithMTDT<TrackCollection>::fillDescriptions(edm::Configuration
   desc.add<edm::ParameterSetDescription>("TrackTransformer",transDesc);
   desc.add<double>("EstimatorMaxChi2",500.);  
   desc.add<double>("EstimatorMaxNSigma",10.); 
-  desc.add<double>("BTLChi2Cut",500.);   
-  desc.add<double>("BTLTimeChi2Cut",10.);   
-  desc.add<double>("ETLChi2Cut",500.);   
-  desc.add<double>("ETLTimeChi2Cut",10.);   
+  desc.add<double>("BTLChi2Cut",50.);   
+  desc.add<double>("BTLTimeChi2Cut",5.);   
+  desc.add<double>("ETLChi2Cut",50.);   
+  desc.add<double>("ETLTimeChi2Cut",5.);   
   descriptions.add("trackExtenderWithMTDBase", desc);
 }
 
@@ -510,6 +510,10 @@ namespace {
       gammasq_pi = 1. + magp2*m_pi_inv2;
       beta_pi = std::sqrt(1.-1./gammasq_pi);
       dt_pi = pathlength/beta_pi*c_inv;
+
+      gammasq_k = 1. + magp2*m_k_inv2;
+      beta_k = std::sqrt(1.-1./gammasq_k);
+      dt_k = pathlength/beta_k*c_inv;
     
       gammasq_p = 1. + magp2*m_p_inv2;
       beta_p = std::sqrt(1.-1./gammasq_p);
@@ -519,19 +523,61 @@ namespace {
       dterror= tmtderror; 
       betaerror=0;
 
+      if (addBsError)
+	dterror = sqrt( dterror*dterror + bserror*bserror );
       if (addPIDError)
 	{
 	  dterror = sqrt(dterror*dterror + (dt_p-dt_pi)*(dt_p-dt_pi));
 	  betaerror = beta_p - beta_pi;
 	}
-      if (addBsError)
-	dterror = sqrt( dterror*dterror + bserror*bserror );
 
       dtchi2 = (dt*dt)/(dterror*dterror);
+
+      dt_best = dt;
+      dterror_best = dterror;
+      dtchi2_best = dtchi2;
+
+      prob_pi = -1.;
+      prob_k = -1.;
+      prob_p = -1.;
+
+      if (!addPIDError)
+	{
+	  //*TODO* deal with heavier nucleons and/or BSM case here?
+	  double chi2_pi=dtchi2;
+	  double chi2_k=(tmtd-dt_k)*(tmtd-dt_k)/(dterror*dterror);
+	  double chi2_p=(tmtd-dt_p)*(tmtd-dt_p)/(dterror*dterror);
+	  
+	  double rawprob_pi = exp(-0.5*chi2_pi);
+	  double rawprob_k = exp(-0.5*chi2_k);
+	  double rawprob_p = exp(-0.5*chi2_p);
+	  double normprob = 1./(rawprob_pi + rawprob_k + rawprob_p);
+	  
+	  prob_pi = rawprob_pi*normprob;
+	  prob_k = rawprob_k*normprob;
+	  prob_p = rawprob_p*normprob;
+	  
+	  double prob_heavy = 1.-prob_pi;
+	  
+	  if (prob_heavy>0.75) {
+	    if (chi2_k < chi2_p)
+	      {
+		dt_best = (tmtd-dt_k);
+		dtchi2_best = chi2_k;
+	      }
+	    else
+	      {
+		dt_best = (tmtd-dt_p);
+		dtchi2_best = chi2_p;
+	      }
+	  }
+	}
     }
 
     static constexpr double m_pi = 0.13957018;
     static constexpr double m_pi_inv2 = 1.0/m_pi/m_pi;
+    static constexpr double m_k = 0.493677; 
+    static constexpr double m_k_inv2 = 1.0/m_k/m_k;
     static constexpr double m_p = 0.9382720813;
     static constexpr double m_p_inv2 = 1.0/m_p/m_p;
     static constexpr double c_cm_ns = CLHEP::c_light*CLHEP::ns/CLHEP::cm; //[cm/ns]
@@ -548,14 +594,26 @@ namespace {
     double dterror;
     double dtchi2;
 
+    double dt_best;
+    double dterror_best;
+    double dtchi2_best;
+
     double gammasq_pi;
     double beta_pi;
     double dt_pi;
+
+    double gammasq_k;
+    double beta_k;
+    double dt_k;
     
     double gammasq_p;
     double beta_p;
     double dt_p;
-    
+
+    double prob_pi;
+    double prob_k;
+    double prob_p;
+
     double betaerror;
   };
 
@@ -593,12 +651,12 @@ namespace {
 		continue;
 	      
 	      double tot_pl = pathlength + std::abs(pl.second); //
-	      TrackTofPidInfo tof(p.mag2(), tot_pl, itr->time(), itr->timeError(), true, true);
+	      TrackTofPidInfo tof(p.mag2(), tot_pl, itr->time(), itr->timeError(), false, true);
 	      
 	      MTDHitMatchingInfo mi;
 	      mi.hit=&(*itr);
 	      mi.estChi2=est.second;
-	      mi.timeChi2=tof.dtchi2;
+	      mi.timeChi2=tof.dtchi2_best; //use the chi2 for the best matching hypothesis 
 
 	      output.insert(mi);	      
 	    }
@@ -734,6 +792,8 @@ reco::Track TrackExtenderWithMTDT<TrackCollection>::buildTrack(const reco::Track
     double thit = 0.;
     double thiterror = -1.;
     bool validmtd = false;
+
+    //need to better handle the cases with >1 hit in MTD
     for (auto it=trajWithMtd.measurements().begin(); it!=trajWithMtd.measurements().end(); ++it) {
       bool ismtd = it->recHit()->geographicalId().det() == DetId::Forward && ForwardSubdetector(it->recHit()->geographicalId().subdetId()) == FastTime;
       if (ismtd) {
@@ -747,7 +807,7 @@ reco::Track TrackExtenderWithMTDT<TrackCollection>::buildTrack(const reco::Track
         
     if (validmtd && validpropagation) 
       {
-	TrackTofPidInfo tofInfo( p.mag2() , pathlength, thit, thiterror, true, false ); //here do not add for vertexing purposes the bs uncertainty
+	TrackTofPidInfo tofInfo( p.mag2() , pathlength, thit, thiterror, true, false ); //here do not add the bs uncertainty (since we use these tracks for vertex)
 	pathLengthOut = pathlength; // set path length if we've got a timing hit
 	tmtdOut = thit;
 	sigmatmtdOut = thiterror;
