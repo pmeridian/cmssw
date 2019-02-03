@@ -68,11 +68,11 @@ public:
   }
 
   inline bool operator<(const MTDHitMatchingInfo &m2) const { 
-    //only for good matching in time use estChi2, otherwise use time compatibility
-    if (timeChi2<5 && m2.timeChi2<5)
-      return chi2(3.) < m2.chi2(3.);
+    //only for good matching in time use estChi2, otherwise use mostly time compatibility
+    if (timeChi2<10 && m2.timeChi2<10)
+      return chi2(2.) < m2.chi2(2.);
     else
-      return timeChi2 < m2.timeChi2;
+      return chi2(5.) < m2.chi2(5.);
   }
 
   inline double chi2(float timeWeight=1.) const { return estChi2 + timeWeight*timeChi2; }
