@@ -53,6 +53,8 @@
 #include "CLHEP/Units/GlobalPhysicalConstants.h"
 #include "CLHEP/Units/GlobalSystemOfUnits.h"
 
+#include "SimDataFormats/Vertex/interface/SimVertex.h"
+
 using namespace std;
 using namespace edm;
 
@@ -106,6 +108,8 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
 							     const MagneticField* field,
 							     const Propagator* prop,
 							     const reco::BeamSpot& bs,
+							     const double& vtxTime,
+							     const bool  matchVertex,
 							     MTDHitMatchingInfo& bestHit) const;
 
   TransientTrackingRecHit::ConstRecHitContainer tryETLLayers(const TrackType&,
@@ -115,6 +119,8 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
 							     const MagneticField* field,
 							     const Propagator* prop,
 							     const reco::BeamSpot& bs,
+							     const double& vtxTime,
+							     const bool matchVertex,
 							     MTDHitMatchingInfo& bestHit) const;
   
   RefitDirection::GeometricalDirection
@@ -158,6 +164,8 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
   edm::EDGetTokenT<InputCollection> tracksToken_;
   edm::EDGetTokenT<MTDTrackingDetSetVector> hitsToken_;
   edm::EDGetTokenT<reco::BeamSpot> bsToken_;
+  edm::EDGetTokenT<vector<SimVertex> > genVtxToken_;
+
   const bool updateTraj_, updateExtra_, updatePattern_;
   const std::string mtdRecHitBuilder_,propagator_, transientTrackBuilder_;
   std::unique_ptr<MeasurementEstimator> theEstimator;
@@ -173,6 +181,9 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
   float btlTimeChi2Cut_;
   float etlChi2Cut_;
   float etlTimeChi2Cut_;
+
+  bool  useVertex_;
+  bool  useSimVertex_;
 };
 
 
@@ -181,6 +192,7 @@ TrackExtenderWithMTDT<TrackCollection>::TrackExtenderWithMTDT(const ParameterSet
   tracksToken_(consumes<InputCollection>(iConfig.getParameter<edm::InputTag>("tracksSrc"))),
   hitsToken_(consumes<MTDTrackingDetSetVector>(iConfig.getParameter<edm::InputTag>("hitsSrc"))),
   bsToken_(consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamSpotSrc"))),
+  genVtxToken_(consumes<vector<SimVertex>>(iConfig.getParameter<edm::InputTag>("genVtxSrc"))),
   updateTraj_(iConfig.getParameter<bool>("updateTrackTrajectory")),
   updateExtra_(iConfig.getParameter<bool>("updateTrackExtra")),
   updatePattern_(iConfig.getParameter<bool>("updateTrackHitPattern")),
@@ -192,7 +204,10 @@ TrackExtenderWithMTDT<TrackCollection>::TrackExtenderWithMTDT(const ParameterSet
   btlChi2Cut_(iConfig.getParameter<double>("BTLChi2Cut")),
   btlTimeChi2Cut_(iConfig.getParameter<double>("BTLTimeChi2Cut")),
   etlChi2Cut_(iConfig.getParameter<double>("ETLChi2Cut")),
-  etlTimeChi2Cut_(iConfig.getParameter<double>("ETLTimeChi2Cut"))
+  etlTimeChi2Cut_(iConfig.getParameter<double>("ETLTimeChi2Cut")),
+  useVertex_(iConfig.getParameter<bool>("UseVertex")),
+  useSimVertex_(iConfig.getParameter<bool>("UseSimVertex"))
+
   {
   theEstimator = std::make_unique<Chi2MeasurementEstimator>(estMaxChi2_,estMaxNSigma_);
   theTransformer = std::make_unique<TrackTransformer>(iConfig.getParameterSet("TrackTransformer"));
@@ -223,6 +238,7 @@ void TrackExtenderWithMTDT<TrackCollection>::fillDescriptions(edm::Configuration
   desc.add<edm::InputTag>("tracksSrc",edm::InputTag("generalTracks"));
   desc.add<edm::InputTag>("hitsSrc",edm::InputTag("mtdTrackingRecHits"));
   desc.add<edm::InputTag>("beamSpotSrc",edm::InputTag("offlineBeamSpot"));
+  desc.add<edm::InputTag>("genVtxSrc",edm::InputTag("g4SimHits"));
   desc.add<bool>("updateTrackTrajectory",true);
   desc.add<bool>("updateTrackExtra",true);
   desc.add<bool>("updateTrackHitPattern",true);
@@ -247,6 +263,8 @@ void TrackExtenderWithMTDT<TrackCollection>::fillDescriptions(edm::Configuration
   desc.add<double>("BTLTimeChi2Cut",5.);   
   desc.add<double>("ETLChi2Cut",50.);   
   desc.add<double>("ETLTimeChi2Cut",5.);   
+  desc.add<bool>("UseVertex",true);   
+  desc.add<bool>("UseSimVertex",true);   
   descriptions.add("trackExtenderWithMTDBase", desc);
 }
 
@@ -320,10 +338,28 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
   ev.getByToken(bsToken_,bsH);
   const auto& bs = *bsH;
 
+  edm::Handle<vector<SimVertex>> genVtxH;  
+  ev.getByToken(genVtxToken_,genVtxH);
+
+  const SimVertex* genPV = nullptr;
+  if(genVtxH.isValid() && useSimVertex_)
+    genPV = &(genVtxH.product()->at(0));
+
+  double genVtxTime=0.;
+  if (genPV)
+    genVtxTime=genPV->position().t()*1E9;//convert to ns
+
   std::vector<unsigned> track_indices;
   unsigned itrack = 0;
   for( const auto& track : tracks ) { 
-    
+
+    double trackVtxTime=0.;
+    if (useSimVertex_)
+      {
+	double dz = std::abs(track.dz(math::XYZPoint(genPV->position().x(),genPV->position().y(),genPV->position().z())));
+	if (dz<0.1)
+	  trackVtxTime=genVtxTime;
+      }
     reco::TransientTrack ttrack(track,magfield.product(),gtg);
     const auto& trajs = theTransformer->transform(track);
     auto thits = theTransformer->getTransientRecHits(ttrack);
@@ -331,12 +367,12 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
     MTDHitMatchingInfo mBTL,mETL;
     if (trajs.size() > 0 )
       {
-	const auto& btlhits = tryBTLLayers(track,trajs.front(),hits,geo.product(),magfield.product(),prop.product(),bs,mBTL);
+	const auto& btlhits = tryBTLLayers(track,trajs.front(),hits,geo.product(),magfield.product(),prop.product(),bs,trackVtxTime,trackVtxTime!=0.,mBTL);
 	mtdthits.insert(mtdthits.end(),btlhits.begin(),btlhits.end());
 	
 	// in the future this should include an intermediate refit before propagating to the ETL
 	// for now it is ok
-	const auto& etlhits = tryETLLayers(track,trajs.front(),hits,geo.product(),magfield.product(),prop.product(),bs,mETL);
+	const auto& etlhits = tryETLLayers(track,trajs.front(),hits,geo.product(),magfield.product(),prop.product(),bs,trackVtxTime,trackVtxTime!=0.,mETL);
 	mtdthits.insert(mtdthits.end(),etlhits.begin(),etlhits.end());
       }
 
@@ -500,8 +536,9 @@ namespace {
 
   struct TrackTofPidInfo
   {
-    TrackTofPidInfo(const double& magp2, const double& length, const double& t_mtd, const double& t_mtderr, bool addPIDError=true, bool addBsError=true)
+    TrackTofPidInfo(const double& magp2, const double& length, const double& t_mtd, const double& t_mtderr, const double& t_vtx,  const double& t_vtx_err,  bool addPIDError=true)
     {
+
       tmtd=t_mtd;
       tmtderror=t_mtderr;
 
@@ -519,12 +556,9 @@ namespace {
       beta_p = std::sqrt(1.-1./gammasq_p);
       dt_p = pathlength/beta_p*c_inv;
 
-      dt = tmtd - dt_pi; //assume by default the pi hypothesis
-      dterror= tmtderror; 
+      dt = tmtd - dt_pi - t_vtx; //assume by default the pi hypothesis
+      dterror= sqrt(tmtderror*tmtderror + t_vtx_err*t_vtx_err); 
       betaerror=0;
-
-      if (addBsError)
-	dterror = sqrt( dterror*dterror + bserror*bserror );
       if (addPIDError)
 	{
 	  dterror = sqrt(dterror*dterror + (dt_p-dt_pi)*(dt_p-dt_pi));
@@ -545,8 +579,8 @@ namespace {
 	{
 	  //*TODO* deal with heavier nucleons and/or BSM case here?
 	  double chi2_pi=dtchi2;
-	  double chi2_k=(tmtd-dt_k)*(tmtd-dt_k)/(dterror*dterror);
-	  double chi2_p=(tmtd-dt_p)*(tmtd-dt_p)/(dterror*dterror);
+	  double chi2_k=(tmtd-dt_k-t_vtx)*(tmtd-dt_k-t_vtx)/(dterror*dterror);
+	  double chi2_p=(tmtd-dt_p-t_vtx)*(tmtd-dt_p-t_vtx)/(dterror*dterror);
 	  
 	  double rawprob_pi = exp(-0.5*chi2_pi);
 	  double rawprob_k = exp(-0.5*chi2_k);
@@ -562,12 +596,12 @@ namespace {
 	  if (prob_heavy>0.75) {
 	    if (chi2_k < chi2_p)
 	      {
-		dt_best = (tmtd-dt_k);
+		dt_best = (tmtd-dt_k-t_vtx);
 		dtchi2_best = chi2_k;
 	      }
 	    else
 	      {
-		dt_best = (tmtd-dt_p);
+		dt_best = (tmtd-dt_p-t_vtx);
 		dtchi2_best = chi2_p;
 	      }
 	  }
@@ -619,9 +653,12 @@ namespace {
 
 
   void find_hits_in_dets(const MTDTrackingDetSetVector& hits, const Trajectory& traj, const DetLayer* layer,
-			 const TrajectoryStateOnSurface& tsos, const reco::BeamSpot& bs, const Propagator* prop,
+			 const TrajectoryStateOnSurface& tsos, 
+			 const double& vtxTime,   
+			 const reco::BeamSpot& bs, const Propagator* prop,
 			 const MeasurementEstimator& theEstimator,		       
 			 const TransientTrackingRecHitBuilder& hitbuilder,
+			 bool  useVtxConstraint,
 			 std::set<MTDHitMatchingInfo>& output) {
 
     TrajectoryStateClosestToBeamLine tscbl;
@@ -651,8 +688,9 @@ namespace {
 		continue;
 	      
 	      double tot_pl = pathlength + std::abs(pl.second); //
-	      TrackTofPidInfo tof(p.mag2(), tot_pl, itr->time(), itr->timeError(), false, true);
-	      
+	      double t_vtx = useVtxConstraint ? vtxTime : 0.;
+	      double t_vtx_err = useVtxConstraint ? 0. : 0.18; //should use beam spot in the future
+	      TrackTofPidInfo tof(p.mag2(), tot_pl, itr->time(), 0.035, t_vtx, t_vtx_err, false); //put hit error by hand for the moment	      
 	      MTDHitMatchingInfo mi;
 	      mi.hit=&(*itr);
 	      mi.estChi2=est.second;
@@ -676,6 +714,8 @@ TrackExtenderWithMTDT<TrackCollection>::tryBTLLayers(const TrackType& track,
 						     const MagneticField* field,
 						     const Propagator* prop,
 						     const reco::BeamSpot& bs,
+						     const double& vtxTime,
+						     const bool  matchVertex,
 						     MTDHitMatchingInfo& bestHit) const {
   
   TransientTrackingRecHit::ConstRecHitContainer output;
@@ -687,7 +727,7 @@ TrackExtenderWithMTDT<TrackCollection>::tryBTLLayers(const TrackType& track,
   for (const DetLayer* ilay : layers) {
     // get the outermost trajectory point on the track    
     std::set<MTDHitMatchingInfo> hitsInLayer;
-    find_hits_in_dets(hits,traj,ilay,tsos,bs,prop,*theEstimator,*hitbuilder,hitsInLayer);
+    find_hits_in_dets(hits,traj,ilay,tsos,vtxTime,bs,prop,*theEstimator,*hitbuilder,useVertex_ && matchVertex,hitsInLayer);
     
     //just take the first hit because the hits are sorted on their matching quality
     if (hitsInLayer.size()>0)
@@ -713,6 +753,8 @@ TrackExtenderWithMTDT<TrackCollection>::tryETLLayers(const TrackType& track,
 						     const MagneticField* field,
 						     const Propagator* prop,
 						     const reco::BeamSpot& bs,
+						     const double& vtxTime,
+						     const bool matchVertex,
 						     MTDHitMatchingInfo& bestHit) const {
 
   TransientTrackingRecHit::ConstRecHitContainer output;
@@ -729,7 +771,7 @@ TrackExtenderWithMTDT<TrackCollection>::tryETLLayers(const TrackType& track,
 
     if( tsos.globalPosition().z() * diskZ < 0 ) continue; // only propagate to the disk that's on the same side
     std::set<MTDHitMatchingInfo> hitsInLayer;
-    find_hits_in_dets(hits,traj,ilay,tsos,bs,prop,*theEstimator,*hitbuilder,hitsInLayer);    
+    find_hits_in_dets(hits,traj,ilay,tsos,vtxTime,bs,prop,*theEstimator,*hitbuilder,useVertex_ && matchVertex,hitsInLayer);    
 
     //just take the first hit because the hits are sorted on their matching score (chi2)
     if (hitsInLayer.size()>0)
@@ -807,7 +849,7 @@ reco::Track TrackExtenderWithMTDT<TrackCollection>::buildTrack(const reco::Track
         
     if (validmtd && validpropagation) 
       {
-	TrackTofPidInfo tofInfo( p.mag2() , pathlength, thit, thiterror, true, false ); //here do not add the bs uncertainty (since we use these tracks for vertex)
+	TrackTofPidInfo tofInfo( p.mag2() , pathlength, thit, thiterror, 0., 0., true); //here add the PID uncertainty for later use in the 1st step of 4D vtx reconstruction
 	pathLengthOut = pathlength; // set path length if we've got a timing hit
 	tmtdOut = thit;
 	sigmatmtdOut = thiterror;
