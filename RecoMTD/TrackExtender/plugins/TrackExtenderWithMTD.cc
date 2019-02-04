@@ -45,6 +45,7 @@
 #include "TrackingTools/TrackRefitter/interface/TrackTransformer.h"
 
 #include <sstream>
+#include <random>
 
 #include "Geometry/CommonTopologies/interface/Topology.h"
 
@@ -72,9 +73,9 @@ public:
   inline bool operator<(const MTDHitMatchingInfo &m2) const { 
     //only for good matching in time use estChi2, otherwise use mostly time compatibility
     if (timeChi2<10 && m2.timeChi2<10)
-      return chi2(2.) < m2.chi2(2.);
+      return chi2(3.) < m2.chi2(3.);
     else
-      return chi2(5.) < m2.chi2(5.);
+      return chi2(8.) < m2.chi2(8.);
   }
 
   inline double chi2(float timeWeight=1.) const { return estChi2 + timeWeight*timeChi2; }
@@ -184,6 +185,8 @@ class TrackExtenderWithMTDT : public edm::stream::EDProducer<> {
 
   bool  useVertex_;
   bool  useSimVertex_;
+
+  std::default_random_engine randomGenerator_;
 };
 
 
@@ -259,10 +262,10 @@ void TrackExtenderWithMTDT<TrackCollection>::fillDescriptions(edm::Configuration
   desc.add<edm::ParameterSetDescription>("TrackTransformer",transDesc);
   desc.add<double>("EstimatorMaxChi2",500.);  
   desc.add<double>("EstimatorMaxNSigma",10.); 
-  desc.add<double>("BTLChi2Cut",50.);   
-  desc.add<double>("BTLTimeChi2Cut",5.);   
-  desc.add<double>("ETLChi2Cut",50.);   
-  desc.add<double>("ETLTimeChi2Cut",5.);   
+  desc.add<double>("BTLChi2Cut",100.);   
+  desc.add<double>("BTLTimeChi2Cut",7.);   
+  desc.add<double>("ETLChi2Cut",100.);   
+  desc.add<double>("ETLTimeChi2Cut",7.);   
   desc.add<bool>("UseVertex",true);   
   desc.add<bool>("UseSimVertex",true);   
   descriptions.add("trackExtenderWithMTDBase", desc);
@@ -347,7 +350,11 @@ void TrackExtenderWithMTDT<TrackCollection>::produce( edm::Event& ev,
 
   double genVtxTime=0.;
   if (genPV)
-    genVtxTime=genPV->position().t()*1E9;//convert to ns
+    {
+      genVtxTime=genPV->position().t()*1E9;//convert to ns
+      std::normal_distribution<double> vtx_smearer(genVtxTime,0.008);//assign 8ps resolution from reco studies
+      genVtxTime=vtx_smearer(randomGenerator_); 
+    }
 
   std::vector<unsigned> track_indices;
   unsigned itrack = 0;
@@ -689,7 +696,7 @@ namespace {
 	      
 	      double tot_pl = pathlength + std::abs(pl.second); //
 	      double t_vtx = useVtxConstraint ? vtxTime : 0.;
-	      double t_vtx_err = useVtxConstraint ? 0. : 0.18; //should use beam spot in the future
+	      double t_vtx_err = useVtxConstraint ? 0.008 : 0.18; //should use beam spot in the future
 	      TrackTofPidInfo tof(p.mag2(), tot_pl, itr->time(), 0.035, t_vtx, t_vtx_err, false); //put hit error by hand for the moment	      
 	      MTDHitMatchingInfo mi;
 	      mi.hit=&(*itr);
@@ -727,8 +734,16 @@ TrackExtenderWithMTDT<TrackCollection>::tryBTLLayers(const TrackType& track,
   for (const DetLayer* ilay : layers) {
     // get the outermost trajectory point on the track    
     std::set<MTDHitMatchingInfo> hitsInLayer;
-    find_hits_in_dets(hits,traj,ilay,tsos,vtxTime,bs,prop,*theEstimator,*hitbuilder,useVertex_ && matchVertex,hitsInLayer);
-    
+
+    if (useVertex_ && matchVertex) 
+      {
+	find_hits_in_dets(hits,traj,ilay,tsos,vtxTime,bs,prop,*theEstimator,*hitbuilder,true,hitsInLayer);
+	if (hitsInLayer.size()==0) //try also with bs hypothesis to handle PU
+	  find_hits_in_dets(hits,traj,ilay,tsos,0.,bs,prop,*theEstimator,*hitbuilder,false,hitsInLayer);
+      }
+    else
+      find_hits_in_dets(hits,traj,ilay,tsos,0.,bs,prop,*theEstimator,*hitbuilder,false,hitsInLayer);
+
     //just take the first hit because the hits are sorted on their matching quality
     if (hitsInLayer.size()>0)
       {
@@ -771,7 +786,15 @@ TrackExtenderWithMTDT<TrackCollection>::tryETLLayers(const TrackType& track,
 
     if( tsos.globalPosition().z() * diskZ < 0 ) continue; // only propagate to the disk that's on the same side
     std::set<MTDHitMatchingInfo> hitsInLayer;
-    find_hits_in_dets(hits,traj,ilay,tsos,vtxTime,bs,prop,*theEstimator,*hitbuilder,useVertex_ && matchVertex,hitsInLayer);    
+
+    if (useVertex_ && matchVertex) 
+      {
+	find_hits_in_dets(hits,traj,ilay,tsos,vtxTime,bs,prop,*theEstimator,*hitbuilder,true,hitsInLayer);
+	if (hitsInLayer.size()==0) //try also with bs hypothesis to handle PU
+	  find_hits_in_dets(hits,traj,ilay,tsos,0.,bs,prop,*theEstimator,*hitbuilder,false,hitsInLayer);
+      }
+    else
+      find_hits_in_dets(hits,traj,ilay,tsos,0.,bs,prop,*theEstimator,*hitbuilder,false,hitsInLayer);
 
     //just take the first hit because the hits are sorted on their matching score (chi2)
     if (hitsInLayer.size()>0)
