@@ -281,10 +281,10 @@ void TrackExtenderWithMTDT<TrackCollection>::fillDescriptions(edm::Configuration
   desc.add<edm::ParameterSetDescription>("TrackTransformer",transDesc);
   desc.add<double>("EstimatorMaxChi2",500.);  
   desc.add<double>("EstimatorMaxNSigma",10.); 
-  desc.add<double>("BTLChi2Cut",70.);   
-  desc.add<double>("BTLTimeChi2Cut",7.);   
-  desc.add<double>("ETLChi2Cut",70.);   
-  desc.add<double>("ETLTimeChi2Cut",7.);   
+  desc.add<double>("BTLChi2Cut",50.);   
+  desc.add<double>("BTLTimeChi2Cut",5.);   
+  desc.add<double>("ETLChi2Cut",50.);   
+  desc.add<double>("ETLTimeChi2Cut",5.);   
   desc.add<bool>("UseVertex",true);   
   desc.add<bool>("UseSimVertex",true);   
   desc.add<double>("DZCut",0.1);   
