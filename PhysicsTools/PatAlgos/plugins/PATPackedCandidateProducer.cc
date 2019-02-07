@@ -92,6 +92,9 @@ namespace pat {
             const std::vector<int> covariancePackingSchemas_;
       
             const bool storeTiming_;
+            const bool timeFromValueMap_;
+            const edm::EDGetTokenT< edm::ValueMap<float> > t0Map_;
+            const edm::EDGetTokenT< edm::ValueMap<float> > t0ErrMap_;            
       
             // for debugging
             float calcDxy(float dx, float dy, float phi) const {
@@ -123,7 +126,11 @@ pat::PATPackedCandidateProducer::PATPackedCandidateProducer(const edm::Parameter
   minPtForTrackProperties_(iConfig.getParameter<double>("minPtForTrackProperties")),
   covarianceVersion_(iConfig.getParameter<int >("covarianceVersion")),
   covariancePackingSchemas_(iConfig.getParameter<std::vector<int> >("covariancePackingSchemas")),
-  storeTiming_(iConfig.getParameter<bool>("storeTiming"))  
+  storeTiming_(iConfig.getParameter<bool>("storeTiming")),
+  timeFromValueMap_(!iConfig.getParameter<edm::InputTag>("TimeMap").encode().empty() || 
+		    !iConfig.getParameter<edm::InputTag>("TimeMapErr").encode().empty()),
+  t0Map_(timeFromValueMap_ ? consumes<edm::ValueMap<float> >(iConfig.getParameter<edm::InputTag>("TimeMap")) : edm::EDGetTokenT< edm::ValueMap<float> >()),
+  t0ErrMap_(timeFromValueMap_ ? consumes<edm::ValueMap<float> >(iConfig.getParameter<edm::InputTag>("TimeErrorMap")) : edm::EDGetTokenT< edm::ValueMap<float> >())
 {
   std::vector<edm::InputTag> sv_tags = iConfig.getParameter<std::vector<edm::InputTag> >("secondaryVerticesForWhiteList");
   for(auto itag : sv_tags){
@@ -215,6 +222,14 @@ void pat::PATPackedCandidateProducer::produce(edm::StreamID, edm::Event& iEvent,
     std::vector<int> mapping(cands->size());
     std::vector<int> mappingReverse(cands->size());
     std::vector<int> mappingTk(TKOrigs->size(), -1);
+
+    edm::Handle<edm::ValueMap<float> > t0Map;
+    edm::Handle<edm::ValueMap<float> > t0ErrMap;
+    if(timeFromValueMap_)
+      {
+	iEvent.getByToken( t0Map_, t0Map );
+	iEvent.getByToken( t0ErrMap_, t0ErrMap );
+      }
 
     for(unsigned int ic=0, nc = cands->size(); ic < nc; ++ic) {
         const reco::PFCandidate &cand=(*cands)[ic];
@@ -356,9 +371,23 @@ void pat::PATPackedCandidateProducer::produce(edm::StreamID, edm::Event& iEvent,
           mappingPuppi[((*puppiCandsMap)[pkref]).key()]=ic;
         }
 	
-        if (storeTiming_ && cand.isTimeValid())  {
-          outPtrP->back().setTime(cand.time(), cand.timeError());
-        }
+        if (storeTiming_ && !timeFromValueMap_)
+	  {
+	    if(cand.isTimeValid())  
+	      {
+		outPtrP->back().setTime(cand.time(), cand.timeError());
+	      }
+	  }
+	else if (storeTiming_ && timeFromValueMap_)
+	  {
+	    if (cand.trackRef().isNonnull())
+	      {
+		auto t0=(*t0Map)[cand.trackRef()];
+		auto t0Err=(*t0ErrMap)[cand.trackRef()];
+		outPtrP->back().setTime(t0,t0Err);
+	      }
+	  }
+    
 
         mapping[ic] = ic; // trivial at the moment!
         if (cand.trackRef().isNonnull() && cand.trackRef().id() == TKOrigs.id()) {
