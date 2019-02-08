@@ -285,8 +285,8 @@ void TrackExtenderWithMTDT<TrackCollection>::fillDescriptions(edm::Configuration
   desc.add<double>("BTLTimeChi2Cut",5.);   
   desc.add<double>("ETLChi2Cut",50.);   
   desc.add<double>("ETLTimeChi2Cut",5.);   
-  desc.add<bool>("UseVertex",true);   
-  desc.add<bool>("UseSimVertex",true);   
+  desc.add<bool>("UseVertex",false);   
+  desc.add<bool>("UseSimVertex",false);   
   desc.add<double>("DZCut",0.1);   
   descriptions.add("trackExtenderWithMTDBase", desc);
 }
